@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<!-- saved from url=(0077)file:///C:/Users/sutt0033/AppData/Local/Downloads/Quiz_File_Converter_v5.html -->
+<html lang="en-AU"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiz File Converter</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1d2430;--muted:#5b6575;--line:#d9dee6;--accent:#1f5f99;--accent-ink:#fff;--ok:#1e7a46;--ok-bg:#e8f5ed;--bad:#b3261e;--bad-bg:#fdecea;--chip:#eef2f7}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--card:#1d2128;--ink:#e6e9ee;--muted:#9aa3b2;--line:#323844;--accent:#6ea8e0;--accent-ink:#0d1117;--ok:#6fcf97;--ok-bg:#16291e;--bad:#f28b82;--bad-bg:#2c1716;--chip:#262b34}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.5rem;margin:0 0 4px}
+h2{font-size:1.1rem;margin:0 0 10px}
+p{margin:0 0 10px}
+.muted{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin:16px 0}
+label{display:block;font-weight:600;margin:10px 0 4px}
+input[type=text],textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit}
+textarea{min-height:160px;font-family:ui-monospace,Consolas,monospace;font-size:13px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+button{font:inherit;padding:9px 16px;border-radius:8px;border:1px solid var(--accent);background:var(--card);color:var(--accent);cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.status{padding:10px 12px;border-radius:8px;margin-top:12px}
+.status.ok{background:var(--ok-bg);color:var(--ok)}
+.status.bad{background:var(--bad-bg);color:var(--bad)}
+.q{border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0;background:var(--card)}
+.dl-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+.dl-opt{border:1px solid var(--line);border-radius:10px;padding:12px}
+.dl-opt h3{margin:0 0 8px;font-size:1rem}
+.small{font-size:13px;margin-top:10px}
+.chk{display:block;font-weight:400;margin:6px 0}
+@media (max-width:700px){.dl-grid{grid-template-columns:1fr}}
+.q.case{border-left:4px solid var(--accent)}
+.q.case .stem{font-weight:400}
+.q.err{border-color:var(--bad);background:var(--bad-bg)}
+.meta{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.stem{font-weight:600;margin-bottom:8px;white-space:pre-wrap}
+.opt{background:var(--chip);border-radius:8px;padding:8px 10px;margin:6px 0}
+.opt.correct{outline:2px solid var(--ok)}
+.opt .fb{font-size:13px;color:var(--muted);margin-top:4px}
+.gfb{font-size:13px;margin-top:6px}
+.errs{color:var(--bad);font-size:13px;margin-top:6px}
+ol{margin:6px 0 0 20px;padding:0}
+code{background:var(--chip);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<main>
+<h1>Quiz File Converter</h1>
+<p class="muted">Turns the question list from the Higher-Order Question Writer into a Canvas quiz file (.zip) or an H5P Question Set (.h5p), with all feedback included. Everything happens in this page. Nothing is uploaded anywhere.</p>
+
+<div class="card">
+<h2>1. Quiz details</h2>
+<label for="title">Quiz title (required)</label>
+<input id="title" type="text" placeholder="e.g. PHYT2xxx Week 5 quiz: ankle and foot">
+<label for="desc">Description (optional)</label>
+<input id="desc" type="text" placeholder="Shown to students at the start of the quiz">
+</div>
+
+<div class="card">
+<h2>2. Questions</h2>
+<p>Paste the whole CSV block from the agent, including the header row, or open a saved .csv file. If the agent exported in batches, paste each batch below the last; repeated header rows are ignored.</p>
+<textarea id="csv" spellcheck="false" placeholder="Pool,Pick,Type,Points,Question,Correct,..."></textarea>
+<div class="row">
+<button id="openBtn" type="button">Open a .csv file</button>
+<input id="file" type="file" accept=".csv,text/csv" hidden="">
+<button id="clearBtn" type="button">Clear</button>
+</div>
+<div id="status" class="status ok">All 4 rows look fine.</div>
+</div>
+
+<div class="card">
+<h2>3. Download</h2>
+<p id="summary" class="muted">Questions each student sees: 3 · Case texts: 1 · Total points: 3</p>
+<div class="dl-grid">
+<div class="dl-opt">
+<h3>Canvas New Quiz</h3>
+<button id="dlBtn" class="primary" type="button">Download Canvas quiz (.zip)</button>
+<p class="muted small"><strong>Then in Canvas:</strong> create a New Quiz with the same title, open <strong>Build</strong>, select the Options menu (three dots) &gt; <strong>Import Content</strong>, and upload the .zip. Leave it unpublished while you preview it. Set attempts, time limit, dates and when students see feedback in the quiz <strong>Settings</strong>.</p>
+</div>
+<div class="dl-opt">
+<h3>H5P Question Set (practice)</h3>
+<label class="chk"><input type="checkbox" id="h5pSolutions" checked=""> Let students reveal the correct answer</label>
+<label class="chk"><input type="checkbox" id="h5pShuffle" checked=""> Shuffle the answer options</label>
+<label class="chk">Pass mark <input type="number" id="h5pPass" value="50" min="0" max="100" style="width:70px"> %</label>
+<button id="h5pBtn" class="primary" type="button">Download H5P (.h5p)</button>
+<p id="h5pNote" class="muted small">3 questions will go into the H5P set.</p>
+<p class="muted small"><strong>Then in H5P:</strong> choose <strong>Add content</strong> &gt; <strong>Upload</strong>, select the .h5p file, then check it in preview before adding it to Canvas.</p>
+</div>
+</div>
+</div>
+
+<div class="card">
+<h2>Preview</h2>
+<div id="preview" class="muted"><div class="q case"><div class="meta">Row 2 · case text (no marks)</div><div class="stem">Jordan, 34, mixed martial arts coach. Jordan presents to your primary-contact physiotherapy clinic with a three-week history of deep right groin pain. It began after an intensive grappling camp involving repeated pivoting and forced hip flexion. The pain is worse when Jordan drops into a deep squat or sits with the knee crossed over, and there is occasional clicking in the groin. Jordan reports no fever, no night sweats and is able to weight-bear and walk into the clinic, though a limp is present after training. Past history includes two courses of oral corticosteroids for asthma this year and moderate weekly alcohol intake. On examination, hip flexion and internal rotation are reduced and reproduce the groin pain, and the FADIR test is positive. Observations taken in clinic are unremarkable. Jordan is keen to keep coaching and wants to know what is going on and whether a scan is needed.</div></div><div class="q"><div class="meta">Row 3 · MC · 1 pt</div><div class="stem">Jordan is 34, presents with three weeks of deep right groin pain after a grappling camp, and reports two recent courses of oral corticosteroids and moderate alcohol intake. Weight-bearing is possible, and there is no fever or night sweats. Given the full picture, what is the most appropriate reasoning about red flags at this first visit?</div><div class="opt">A. Septic arthritis is the priority concern and warrants urgent referral before any physiotherapy assessment.<div class="fb">Septic arthritis is a genuine hip red flag, but the slide lists its picture as severe pain, fever and inability to weight-bear. Jordan is afebrile and weight-bearing, so this does not fit. It would become the priority if Jordan developed fever with a hot, very painful hip and could no longer bear weight.</div></div><div class="opt">B. No red-flag pathology need be considered, because the mechanical history and positive FADIR fully explain the presentation.<div class="fb">The mechanical story and positive FADIR do point strongly to an intra-articular problem, but dismissing red flags entirely misses the corticosteroid and alcohol history, which are specific AVN risk factors. Safe primary-contact practice keeps AVN on the list even when a mechanical cause looks likely.</div></div><div class="opt correct">C. Avascular necrosis should be kept in mind given the corticosteroid and alcohol history and the deep, progressive groin pain, so response to management should be monitored.<div class="fb">Correct. AVN risk on the slide is steroids, alcohol and trauma, and the presentation is deep, progressive groin pain, which matches Jordan's corticosteroid courses, alcohol intake and groin pain. AVN does not need emergency referral like septic arthritis, so keeping it in mind and monitoring the response to management is the appropriate call. Revisit the "Red Flags – Primary Contact Practice" slide.</div></div><div class="opt">D. The recent corticosteroid use points to septic arthritis, so inflammatory markers and urgent referral are the immediate priority.<div class="fb">This mixes up two red flags. Corticosteroids raise AVN risk, not septic arthritis risk, and septic arthritis is signalled by fever and inability to weight-bear, which are absent here. Urgent referral for sepsis would be right only if those infective features were present.</div></div><div class="gfb"><strong>General feedback: </strong>Two hip red flags appear on the slide: AVN (risk from steroids, alcohol, trauma; deep progressive groin pain) and septic arthritis (severe pain, fever, inability to weight-bear, needing urgent referral). Jordan carries AVN risk factors but none of the septic picture, so the reasoning is to keep AVN in mind and monitor, not to trigger an emergency referral.</div></div><div class="q"><div class="meta">Row 4 · MC · 1 pt</div><div class="stem">Jordan, the 34-year-old coach, has reduced hip flexion and internal rotation that reproduce the groin pain, a positive FADIR test, clicking, and symptoms brought on by deep squatting and sitting with the knee crossed. Which interpretation of these findings is best supported?</div><div class="opt">A. The global restriction across all hip movements points to established hip osteoarthritis.<div class="fb">OA does give global range restriction, but the slide ties OA to older age and lists morning stiffness and buttock/groin pain, and the pattern here is a selective loss of flexion and internal rotation, not a global one. At 34 with a positive FADIR, impingement fits far better.</div></div><div class="opt correct">B. The reduced flexion and internal rotation with a positive FADIR fit femoroacetabular impingement, with possible labral involvement given the clicking and pivoting history.<div class="fb">Correct. The FAI clinical features slide lists reduced hip flexion and internal rotation and a positive FADIR, which is exactly Jordan's pattern, and the clicking plus pivoting history raises labral involvement, noted on the slides as often occurring with FAI. This connects the examination pattern to the most likely intra-articular diagnosis. Revisit the "FAI – Clinical Features" and "Labral Tears" slides.</div></div><div class="opt">C. Morning stiffness lasting under 30 minutes is the key feature and indicates early osteoarthritis.<div class="fb">Morning stiffness under 30 minutes is an OA feature on the slide, but nothing in the case reports morning stiffness, and Jordan's age and impingement signs point away from OA. This option latches onto a single OA cue that is not actually present.</div></div><div class="opt">D. The clicking alone confirms an isolated traumatic labral tear independent of any impingement.<div class="fb">Clicking can accompany a labral tear, but the slides describe labral tears as often degenerative and linked with FAI or dysplasia, not as isolated findings confirmed by clicking alone. The positive FADIR and restricted flexion and internal rotation point to impingement driving the picture.</div></div><div class="gfb"><strong>General feedback: </strong>FAI shows as reduced flexion and internal rotation with a positive FADIR, and labral tears commonly sit alongside it, especially with a pivoting mechanism and clicking. The examination pattern here is selective rather than global, which separates FAI from OA.</div></div><div class="q"><div class="meta">Row 5 · MC · 1 pt</div><div class="stem">Jordan, the 34-year-old coach with a positive FADIR and clicking, wants to know whether a scan is needed and what it would show. You suspect FAI with possible labral involvement. Which imaging choice is the most appropriate to confirm the suspected labral pathology, and why?</div><div class="opt">A. Plain X-ray, because it is the gold standard for demonstrating labral tears.<div class="fb">X-ray is the right tool for OA changes and FAI bony morphology on the slide, but it does not show soft-tissue labral tears and is not the gold standard for them. It would be a reasonable first film for the bony picture, not for confirming a labral tear.</div></div><div class="opt">B. MRI without contrast, because it is the definitive test for cam and pincer bony morphology.<div class="fb">MRI does image labral and chondral tissue, but the slide names cam and pincer morphology as an X-ray finding, and the gold standard for labral pathology is the MRI arthrogram, not plain MRI. This option pairs the right modality with the wrong indication.</div></div><div class="opt">C. No imaging is useful, because intra-articular hip pathology cannot be visualised.<div class="fb">The imaging slide clearly maps modalities to intra-articular pathology, so saying nothing is useful contradicts the source. Labral and chondral lesions are exactly what MRI and MRI arthrogram are used to show.</div></div><div class="opt correct">D. MRI arthrogram, because it is the gold standard for labral pathology, while X-ray remains useful for FAI morphology and OA.<div class="fb">Correct. The imaging slide lists the MRI arthrogram as the gold standard for labral pathology, with X-ray for OA and FAI morphology and MRI for labral and chondral lesions. Choosing the arthrogram to confirm the suspected labral tear, while noting X-ray still has a role for the bony picture, matches the source and Jordan's suspected diagnosis. Revisit the "Imaging &amp; Diagnosis" slide.</div></div><div class="gfb"><strong>General feedback: </strong>Match the modality to the target: X-ray for OA and FAI bony morphology, MRI for labral and chondral lesions, and MRI arthrogram as the gold standard for labral pathology. For a suspected labral tear, the arthrogram is the confirmatory choice.</div></div></div>
+</div>
+</main>
+
+<script>
+"use strict";
+const TYPES={CASE:"text_only_question",MC:"multiple_choice_question",MA:"multiple_answers_question",TF:"true_false_question",SA:"short_answer_question",NUM:"numerical_question",ESSAY:"essay_question",RATING:"multiple_choice_question"};
+const ALIAS={MR:"MA",MCQ:"MC",ESS:"ESSAY",NUMERICAL:"NUM",TEXT:"CASE",STIMULUS:"CASE"};
+const LETTERS="ABCDEF";
+
+function rid(){const a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(16).padStart(2,"0")).join("");}
+function xesc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function aesc(s){return xesc(s).replace(/"/g,"&quot;");}
+function html(t){return xesc("<p>"+xesc(t).replace(/\r?\n/g,"<br/>")+"</p>");}
+function mat(t){return '<material><mattext texttype="text/html">'+html(t)+'</mattext></material>';}
+function fbx(id,t){return '<itemfeedback ident="'+id+'"><flow_mat>'+mat(t)+'</flow_mat></itemfeedback>';}
+function num(x){const v=Number(String(x).replace(/,/g,"").trim());if(String(x).trim()===""||isNaN(v))throw new Error("nan");return v;}
+function isNum(x){try{num(x);return true}catch(e){return false}}
+
+function parseCSV(text){
+  text=text.replace(/^﻿/,"");
+  const rows=[];let row=[],f="",q=false,prevClosed=false,wsSinceClose=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else {q=false;prevClosed=true;} } else f+=c; }
+    else if(prevClosed&&(c===' '||c==='\t')){ wsSinceClose=true; }
+    else if(c==='"'){ if(f.trim()!==""||(prevClosed&&wsSinceClose)){ row.push(f.trim()); rows.push(row); row=[]; f=""; } q=true; prevClosed=false; wsSinceClose=false; }
+    else if(c===','){ row.push(f); f=""; prevClosed=false; wsSinceClose=false; }
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n')i++; row.push(f); rows.push(row); row=[]; f=""; prevClosed=false; wsSinceClose=false; }
+    else { f+=c; prevClosed=false; }
+  }
+  if(f!==""||row.length){row.push(f);rows.push(row);}
+  return rows.filter(r=>r.some(x=>x.trim()!==""));
+}
+
+function toRecords(rows){
+  if(!rows.length)return {err:"No rows found."};
+  const head=rows[0].map(h=>h.trim().toLowerCase());
+  if(!head.includes("type")||!head.includes("question"))
+    return {err:"The first row must be the header row from the agent (Pool,Pick,Type,Points,Question,Correct,...). Copy the whole block, including the first line."};
+  const hsig=head.join("|");
+  const all=rows.slice(1).filter(r=>r.map(h=>h.trim().toLowerCase()).join("|")!==hsig).map(r=>{const o={};head.forEach((h,i)=>o[h]=(r[i]||"").trim());return o;});
+  const seenKeys=new Set(),recs=[];let dups=0;
+  all.forEach(o=>{const k=Object.values(o).join("\u0001");if(seenKeys.has(k)){dups++;return;}seenKeys.add(k);recs.push(o);});
+  return {recs,dups};
+}
+const g=(r,k)=>(r[k.toLowerCase()]||"").trim();
+function looksLikeCase(r){return !g(r,"Question")&&!g(r,"Option A")&&!g(r,"Correct")&&!!g(r,"General feedback");}
+function typeOf(r){let t=g(r,"Type").toUpperCase();t=ALIAS[t]||t;return looksLikeCase(r)?"CASE":t;}
+function caseText(r){return (g(r,"Question")||g(r,"General feedback")).replace(/\s*Keep in this order;? do not shuffle or pool\.?/i,"");}
+
+function check(recs){
+  const errs=recs.map(()=>[]);const pools={};
+  recs.forEach((r,i)=>{
+    const e=errs[i],t=typeOf(r);
+    if(!TYPES[t]){e.push("Type '"+g(r,"Type")+"' must be one of "+Object.keys(TYPES).join(", "));return;}
+    if(t==="CASE"){ if(!caseText(r))e.push("Case text is empty"); return; }
+    if(!g(r,"Question"))e.push("Question is empty");
+    const pts=g(r,"Points")||"1";
+    if(!isNum(pts)||num(pts)<0)e.push("Points '"+pts+"' is not a number");
+    const opts=[...LETTERS].filter(L=>g(r,"Option "+L));
+    const c=g(r,"Correct").toUpperCase().replace(/\s/g,"");
+    if(["MC","MA","RATING"].includes(t)&&opts.length<2)e.push("Needs at least two options");
+    if(t==="MC"&&(c.length!==1||!opts.includes(c)))e.push("Correct must be one filled option letter (got '"+c+"')");
+    if(t==="MA"&&(!c||c.split(",").some(x=>!opts.includes(x))))e.push("Correct must list filled option letters, e.g. A,C (got '"+c+"')");
+    if(t==="TF"&&!["TRUE","FALSE"].includes(c))e.push("Correct must be True or False");
+    if(t==="SA"&&!g(r,"Correct"))e.push("Correct must list accepted answers separated by |");
+    if(t==="NUM"&&(!isNum(g(r,"Correct"))||!isNum(g(r,"Tolerance")||"0")))e.push("Correct and Tolerance must be numbers");
+    const p=g(r,"Pool");if(p)(pools[p]=pools[p]||[]).push(i);
+  });
+  const poolErrs=[];
+  for(const [p,m] of Object.entries(pools)){
+    const picks=m.map(i=>g(recs[i],"Pick")).filter(Boolean);
+    const n=picks.length?Math.floor(Number(picks[0])):m.length;
+    if(!(n>=1&&n<=m.length))poolErrs.push("Pool '"+p+"': Pick must be between 1 and "+m.length);
+  }
+  return {errs,poolErrs};
+}
+
+function item(r){
+  const t=typeOf(r),qid="q_"+rid();
+  if(t==="CASE"){
+    const txt=caseText(r);
+    const meta=[["question_type","text_only_question"],["points_possible","0"],["original_answer_ids",""],["assessment_question_identifierref","ref_"+qid]]
+      .map(kv=>"<qtimetadatafield><fieldlabel>"+kv[0]+"</fieldlabel><fieldentry>"+kv[1]+"</fieldentry></qtimetadatafield>").join("");
+    return {xml:'<item ident="'+qid+'" title="'+aesc(txt.replace(/\s+/g," ").slice(0,60))+'"><itemmetadata><qtimetadata>'+meta+'</qtimetadata></itemmetadata><presentation>'+mat(txt)+'</presentation></item>',pts:0,isCase:true};
+  }
+  const pts=g(r,"Points")||"1";
+  const gen=g(r,"General feedback");let cor=g(r,"Correct feedback"),inc=g(r,"Incorrect feedback");
+  if(t==="RATING"){cor="";inc="";}
+  let choices=[],pres="";const conds=[],fbs=[];
+  if(["MC","MA","RATING","TF"].includes(t)){
+    let opts,right;
+    if(t==="TF"){opts=[["True",""],["False",""]];right=[g(r,"Correct").toUpperCase()==="TRUE"?"A":"B"];}
+    else{opts=[...LETTERS].filter(L=>g(r,"Option "+L)).map(L=>[g(r,"Option "+L),g(r,"Feedback "+L)]);
+      right=g(r,"Correct").toUpperCase().replace(/\s/g,"").split(",").filter(Boolean);
+      if(t==="RATING")right=[...LETTERS.slice(0,opts.length)];}
+    const ids=opts.map(()=>"c_"+rid());choices=ids;
+    const card=t==="MA"?"Multiple":"Single";
+    const labels=opts.map((o,k)=>'<response_label ident="'+ids[k]+'">'+mat(o[0])+'</response_label>').join("");
+    pres='<response_lid ident="response1" rcardinality="'+card+'"><render_choice>'+labels+'</render_choice></response_lid>';
+    opts.forEach((o,k)=>{if(o[1]){conds.push('<respcondition continue="Yes"><conditionvar><varequal respident="response1">'+ids[k]+'</varequal></conditionvar><displayfeedback feedbacktype="Response" linkrefid="'+ids[k]+'_fb"/></respcondition>');fbs.push(fbx(ids[k]+"_fb",o[1]));}});
+    const rset=right.map(x=>ids[LETTERS.indexOf(x)]);
+    const disp=cor?'<displayfeedback feedbacktype="Response" linkrefid="correct_fb"/>':"";
+    if(t==="MA"){const parts=ids.map(i=>rset.includes(i)?'<varequal respident="response1">'+i+'</varequal>':'<not><varequal respident="response1">'+i+'</varequal></not>').join("");
+      conds.push('<respcondition continue="No"><conditionvar><and>'+parts+'</and></conditionvar><setvar action="Set" varname="SCORE">100</setvar>'+disp+'</respcondition>');}
+    else rset.forEach(i=>conds.push('<respcondition continue="No"><conditionvar><varequal respident="response1">'+i+'</varequal></conditionvar><setvar action="Set" varname="SCORE">100</setvar>'+disp+'</respcondition>'));
+  } else {
+    const fib=t==="NUM"?'<render_fib fibtype="Decimal"><response_label ident="answer1"/></render_fib>':'<render_fib><response_label ident="answer1" rshuffle="No"/></render_fib>';
+    pres='<response_str ident="response1" rcardinality="Single">'+fib+'</response_str>';
+    const disp=cor?'<displayfeedback feedbacktype="Response" linkrefid="correct_fb"/>':"";
+    if(t==="SA"){const eq=g(r,"Correct").split("|").map(a=>a.trim()).filter(Boolean).map(a=>'<varequal respident="response1">'+xesc(a)+'</varequal>').join("");
+      conds.push('<respcondition continue="No"><conditionvar>'+eq+'</conditionvar><setvar action="Set" varname="SCORE">100</setvar>'+disp+'</respcondition>');choices=["a_"+rid()];}
+    else if(t==="NUM"){const v=num(g(r,"Correct")),tol=Math.abs(num(g(r,"Tolerance")||"0"));
+      conds.push('<respcondition continue="No"><conditionvar><or><varequal respident="response1">'+v.toFixed(4)+'</varequal><and><vargte respident="response1">'+(v-tol).toFixed(4)+'</vargte><varlte respident="response1">'+(v+tol).toFixed(4)+'</varlte></and></or></conditionvar><setvar action="Set" varname="SCORE">100</setvar>'+disp+'</respcondition>');choices=["n_"+rid()];}
+    else conds.push('<respcondition continue="No"><conditionvar><other/></conditionvar></respcondition>');
+  }
+  if(gen){conds.unshift('<respcondition continue="Yes"><conditionvar><other/></conditionvar><displayfeedback feedbacktype="Response" linkrefid="general_fb"/></respcondition>');fbs.unshift(fbx("general_fb",gen));}
+  if(cor&&t!=="ESSAY")fbs.push(fbx("correct_fb",cor));
+  if(inc&&t!=="ESSAY"){conds.push('<respcondition continue="Yes"><conditionvar><other/></conditionvar><displayfeedback feedbacktype="Response" linkrefid="general_incorrect_fb"/></respcondition>');fbs.push(fbx("general_incorrect_fb",inc));}
+  const title=aesc(g(r,"Question").replace(/\s+/g," ").slice(0,60));
+  const meta=[["question_type",TYPES[t]],["points_possible",pts],["original_answer_ids",choices.join(",")],["assessment_question_identifierref","ref_"+qid]]
+    .map(kv=>"<qtimetadatafield><fieldlabel>"+kv[0]+"</fieldlabel><fieldentry>"+kv[1]+"</fieldentry></qtimetadatafield>").join("");
+  return {xml:'<item ident="'+qid+'" title="'+title+'"><itemmetadata><qtimetadata>'+meta+'</qtimetadata></itemmetadata><presentation>'+mat(g(r,"Question"))+pres+'</presentation><resprocessing><outcomes><decvar maxvalue="100" minvalue="0" varname="SCORE" vartype="Decimal"/></outcomes>'+conds.join("")+'</resprocessing>'+fbs.join("")+'</item>',pts:num(pts)};
+}
+
+function build(recs,title,description){
+  const aid="quiz_"+rid();const body=[],order=[],pools={};let total=0,seen=0,cases=0;const notes=[];
+  recs.forEach(r=>{const p=g(r,"Pool");if(p){if(!pools[p]){pools[p]=[];order.push(["pool",p]);}pools[p].push(r);}else order.push(["item",r]);});
+  order.forEach(([k,v])=>{
+    if(k==="item"){const it=item(v);body.push(it.xml);total+=it.pts;if(it.isCase)cases++;else seen++;}
+    else{const m=pools[v];const picks=m.map(r=>g(r,"Pick")).filter(Boolean);const n=picks.length?Math.floor(Number(picks[0])):m.length;
+      const each=num(g(m[0],"Points")||"1");
+      body.push('<section ident="g_'+rid()+'" title="'+aesc(v)+'"><selection_ordering><selection><selection_number>'+n+'</selection_number><selection_extension><points_per_item>'+each+'</points_per_item></selection_extension></selection></selection_ordering>'+m.map(r=>item(r).xml).join("")+'</section>');
+      total+=n*each;seen+=n;notes.push(v+": "+n+" of "+m.length+" drawn");}
+  });
+  const qti='<?xml version="1.0" encoding="UTF-8"?><questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2"><assessment ident="'+aid+'" title="'+aesc(title)+'"><qtimetadata><qtimetadatafield><fieldlabel>cc_maxattempts</fieldlabel><fieldentry>1</fieldentry></qtimetadatafield></qtimetadata><section ident="root_section">'+body.join("")+'</section></assessment></questestinterop>';
+  const qmeta='<?xml version="1.0" encoding="UTF-8"?><quiz identifier="'+aid+'" xmlns="http://canvas.instructure.com/xsd/cccv1p0"><title>'+xesc(title)+'</title><description>'+(description?html(description):"")+'</description><shuffle_answers>false</shuffle_answers><scoring_policy>keep_highest</scoring_policy><quiz_type>assignment</quiz_type><points_possible>'+total+'</points_possible><show_correct_answers>true</show_correct_answers><allowed_attempts>1</allowed_attempts><available>false</available></quiz>';
+  const man='<?xml version="1.0" encoding="UTF-8"?><manifest identifier="man_'+aid+'" xmlns="http://www.imsglobal.org/xsd/imsccv1p1/imscp_v1p1"><metadata><schema>IMS Content</schema><schemaversion>1.1.3</schemaversion></metadata><organizations/><resources><resource identifier="'+aid+'" type="imsqti_xmlv1p2"><file href="'+aid+'/'+aid+'.xml"/><dependency identifierref="dep_'+aid+'"/></resource><resource identifier="dep_'+aid+'" type="associatedcontent/imscc_xmlv1p1/learning-application-resource" href="'+aid+'/assessment_meta.xml"><file href="'+aid+'/assessment_meta.xml"/></resource></resources></manifest>';
+  return {cases,files:[["imsmanifest.xml",man],[aid+"/"+aid+".xml",qti],[aid+"/assessment_meta.xml",qmeta]],total,seen,notes};
+}
+
+/* Minimal zip writer (stored, no compression) */
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function zip(files){
+  const enc=new TextEncoder(),parts=[],cd=[];let off=0;
+  const d=new Date(),dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF,dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+  for(const [name,text] of files){
+    const nb=enc.encode(name),data=enc.encode(text),crc=crc32(data);
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(8,0,true);
+    lh.setUint16(10,dt,true);lh.setUint16(12,dd,true);lh.setUint32(14,crc,true);lh.setUint32(18,data.length,true);lh.setUint32(22,data.length,true);
+    lh.setUint16(26,nb.length,true);lh.setUint16(28,0,true);
+    parts.push(new Uint8Array(lh.buffer),nb,data);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);ch.setUint16(10,0,true);
+    ch.setUint16(12,dt,true);ch.setUint16(14,dd,true);ch.setUint32(16,crc,true);ch.setUint32(20,data.length,true);ch.setUint32(24,data.length,true);
+    ch.setUint16(28,nb.length,true);ch.setUint16(30,0,true);ch.setUint16(32,0,true);ch.setUint16(34,0,true);ch.setUint16(36,0,true);ch.setUint32(38,0,true);ch.setUint32(42,off,true);
+    cd.push(new Uint8Array(ch.buffer),nb);
+    off+=30+nb.length+data.length;
+  }
+  const cdSize=cd.reduce((s,a)=>s+a.length,0);
+  const end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);end.setUint32(12,cdSize,true);end.setUint32(16,off,true);
+  return new Blob([...parts,...cd,new Uint8Array(end.buffer)],{type:"application/zip"});
+}
+
+
+/* H5P Question Set builder (versions taken from a Flinders H5P export) */
+const H5P_DEPS=[{"machineName": "FontAwesome", "majorVersion": 4, "minorVersion": 5}, {"machineName": "H5P.FontIcons", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Transition", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.JoubelUI", "majorVersion": 1, "minorVersion": 3}, {"machineName": "jQuery.ui", "majorVersion": 1, "minorVersion": 10}, {"machineName": "H5P.Components", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Question", "majorVersion": 1, "minorVersion": 5}, {"machineName": "H5P.MultiChoice", "majorVersion": 1, "minorVersion": 16}, {"machineName": "H5P.TrueFalse", "majorVersion": 1, "minorVersion": 8}, {"machineName": "H5P.Video", "majorVersion": 1, "minorVersion": 6}, {"machineName": "H5P.QuestionSet", "majorVersion": 1, "minorVersion": 21}];
+function uuid(){const b=new Uint8Array(16);crypto.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,x=>x.toString(16).padStart(2,"0")).join("");return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20);}
+function he(t){return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\r?\n/g,"<br>");}
+const CONFIRM_CHECK={header:"Finish ?",body:"Are you sure you wish to finish ?",cancelLabel:"Cancel",confirmLabel:"Finish"};
+const CONFIRM_RETRY={header:"Retry ?",body:"Are you sure you wish to retry ?",cancelLabel:"Cancel",confirmLabel:"Confirm"};
+function h5pMC(r,casePrefix,opts){
+  const t=typeOf(r);const right=g(r,"Correct").toUpperCase().replace(/\s/g,"").split(",").filter(Boolean);
+  const answers=[...LETTERS].filter(L=>g(r,"Option "+L)).map(L=>({correct:right.includes(L),tipsAndFeedback:{tip:"",chosenFeedback:g(r,"Feedback "+L)?"<div>"+he(g(r,"Feedback "+L))+"</div>":"",notChosenFeedback:""},text:"<div>"+he(g(r,"Option "+L))+"</div>"}));
+  const gen=g(r,"General feedback"),cor=g(r,"Correct feedback"),inc=g(r,"Incorrect feedback");
+  const join=(a,b)=>[a,b].filter(Boolean).join(" ");
+  const of=(cor||inc)?[{from:0,to:99,feedback:join(inc,gen)},{from:100,to:100,feedback:join(cor,gen)}]:[{from:0,to:100,feedback:gen}];
+  return {params:{media:{disableImageZooming:false},answers,overallFeedback:of,
+    behaviour:{enableRetry:true,enableSolutionsButton:opts.solutions,enableCheckButton:true,type:t==="MA"?"multi":"single",singlePoint:t!=="MA",randomAnswers:opts.shuffle,showSolutionsRequiresInput:true,confirmCheckDialog:false,confirmRetryDialog:false,autoCheck:false,passPercentage:100,showScorePoints:true},
+    UI:{checkAnswerButton:"Check",submitAnswerButton:"Submit",showSolutionButton:"Show solution",tryAgainButton:"Retry",tipsLabel:"Show tip",scoreBarLabel:"You got :num out of :total points",tipAvailable:"Tip available",feedbackAvailable:"Feedback available",readFeedback:"Read feedback",wrongAnswer:"Wrong answer",correctAnswer:"Correct answer",shouldCheck:"Should have been checked",shouldNotCheck:"Should not have been checked",noInput:"Please answer before viewing the solution",a11yCheck:"Check the answers. The responses will be marked as correct, incorrect, or unanswered.",a11yShowSolution:"Show the solution. The task will be marked with its correct solution.",a11yRetry:"Retry the task. Reset all responses and start the task over again."},
+    confirmCheck:CONFIRM_CHECK,confirmRetry:CONFIRM_RETRY,question:casePrefix+"<p>"+he(g(r,"Question"))+"</p>"},
+    library:"H5P.MultiChoice 1.16",metadata:{contentType:"Multiple Choice",license:"U",title:g(r,"Question").replace(/\s+/g," ").slice(0,60)},subContentId:uuid()};
+}
+function h5pTF(r,casePrefix,opts){
+  const gen=g(r,"General feedback");const join=(a,b)=>[a,b].filter(Boolean).join(" ");
+  return {params:{media:{disableImageZooming:false},correct:g(r,"Correct").toUpperCase()==="TRUE"?"true":"false",
+    behaviour:{enableRetry:true,enableSolutionsButton:opts.solutions,enableCheckButton:true,confirmCheckDialog:false,confirmRetryDialog:false,autoCheck:false,feedbackOnCorrect:join(g(r,"Correct feedback")||"Correct.",gen),feedbackOnWrong:join(g(r,"Incorrect feedback")||"Not quite.",gen)},
+    l10n:{trueText:"True",falseText:"False",score:"You got @score of @total points",checkAnswer:"Check",submitAnswer:"Submit",showSolutionButton:"Show solution",tryAgain:"Retry",wrongAnswerMessage:"Wrong answer",correctAnswerMessage:"Correct answer",scoreBarLabel:"You got :num out of :total points",a11yCheck:"Check the answers. The responses will be marked as correct, incorrect, or unanswered.",a11yShowSolution:"Show the solution. The task will be marked with its correct solution.",a11yRetry:"Retry the task. Reset all responses and start the task over again."},
+    confirmCheck:CONFIRM_CHECK,confirmRetry:CONFIRM_RETRY,question:casePrefix+"<p>"+he(g(r,"Question"))+"</p>"},
+    library:"H5P.TrueFalse 1.8",metadata:{contentType:"True/False Question",license:"U",title:g(r,"Question").replace(/\s+/g," ").slice(0,60)},subContentId:uuid()};
+}
+function buildH5P(recs,title,opts){
+  const questions=[],skipped=[];let pendingCase="",pools=false;
+  recs.forEach((r,i)=>{
+    const t=typeOf(r);if(g(r,"Pool"))pools=true;
+    if(t==="CASE"){const ct=caseText(r);pendingCase=(/^case\b/i.test(ct)?"":"<p><strong>Case</strong></p>")+"<p>"+he(ct)+"</p><hr>";return;}
+    if(t==="MC"||t==="MA"){questions.push(h5pMC(r,pendingCase,opts));pendingCase="";}
+    else if(t==="TF"){questions.push(h5pTF(r,pendingCase,opts));pendingCase="";}
+    else skipped.push("row "+(i+2)+" ("+t+")");
+  });
+  const content={introPage:{showIntroPage:false,startButtonText:"Start Quiz",introduction:""},progressType:questions.length>12?"textual":"dots",passPercentage:opts.pass,questions,
+    disableBackwardsNavigation:false,randomQuestions:false,
+    endGame:{showResultPage:true,showSolutionButton:opts.solutions,showRetryButton:true,noResultMessage:"Finished",message:"Results",amountCorrect:"@finals of @totals correct",scoreBarLabel:"You got @finals out of @totals points",scoreHeader:"Score",overallFeedback:[{from:0,to:100}],solutionButtonText:"Show solution",retryButtonText:"Retry",finishButtonText:"Finish",submitButtonText:"Submit",showAnimations:false,skippable:false,skipButtonText:"Skip video"},
+    override:{checkButton:true,showSolutionButton:opts.solutions?"on":"off",retryButton:"on"},
+    texts:{prevButton:"Previous question",previous:"Previous",nextButton:"Next question",next:"Next",finishButton:"Finish",submitButton:"Submit",textualProgress:"Question: @current of @total questions",jumpToQuestion:"Question %d of %total",questionLabel:"Question",readSpeakerProgress:"Question @current of @total",unansweredText:"Unanswered",answeredText:"Answered",currentQuestionText:"Current question",navigationLabel:"Questions",questionSetInstruction:"Choose question to display"}};
+  const h5pjson={title,language:"en",mainLibrary:"H5P.QuestionSet",embedTypes:["div"],license:"U",defaultLanguage:"en",preloadedDependencies:H5P_DEPS};
+  return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify(content)]],count:questions.length,skipped,pools};
+}
+function h5pOpts(){let pass=parseInt($("h5pPass").value,10);if(isNaN(pass))pass=50;pass=Math.max(0,Math.min(100,pass));return {solutions:$("h5pSolutions").checked,shuffle:$("h5pShuffle").checked,pass};}
+
+/* UI */
+const $=id=>document.getElementById(id);
+let current=null;
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
+
+function refresh(){
+  const st=$("status"),pv=$("preview"),sum=$("summary"),dl=$("dlBtn");current=null;dl.disabled=true;$("h5pBtn").disabled=true;$("h5pNote").textContent="";pv.innerHTML="";
+  const text=$("csv").value;
+  if(!text.trim()){st.hidden=true;pv.textContent="Nothing to preview yet.";sum.textContent="Paste questions to see a summary.";return;}
+  const t=toRecords(parseCSV(text));
+  if(t.err){st.hidden=false;st.className="status bad";st.textContent=t.err;sum.textContent="";return;}
+  const recs=t.recs;const {errs,poolErrs}=check(recs);
+  const nErr=errs.filter(e=>e.length).length+poolErrs.length;
+  recs.forEach((r,i)=>{
+    const tp=typeOf(r),box=el("div","q"+(errs[i].length?" err":""));
+    if(tp==="CASE"){box.classList.add("case");box.appendChild(el("div","meta","Row "+(i+2)+" · case text (no marks)"+(g(r,"Type").toUpperCase()!=="CASE"?" · detected automatically":"")));
+      box.appendChild(el("div","stem",caseText(r)));if(errs[i].length){const d=el("div","errs");errs[i].forEach(e=>d.appendChild(el("div",null,"\u26a0 "+e)));box.appendChild(d);}pv.appendChild(box);return;}
+    box.appendChild(el("div","meta","Row "+(i+2)+" · "+(tp||"?")+" · "+(g(r,"Points")||"1")+" pt"+(g(r,"Pool")?" · pool: "+g(r,"Pool"):"")));
+    box.appendChild(el("div","stem",g(r,"Question")||"(no question text)"));
+    const correct=g(r,"Correct").toUpperCase().replace(/\s/g,"").split(",");
+    if(tp==="TF"){["True","False"].forEach(v=>{const o=el("div","opt"+(correct[0]===v.toUpperCase()?" correct":""),v);box.appendChild(o);});}
+    else [...LETTERS].forEach(L=>{const ot=g(r,"Option "+L);if(!ot)return;
+      const o=el("div","opt"+((tp==="RATING"||correct.includes(L))?" correct":""),L+". "+ot);
+      const fb=g(r,"Feedback "+L);if(fb)o.appendChild(el("div","fb",fb));box.appendChild(o);});
+    if(["SA","NUM"].includes(tp))box.appendChild(el("div","opt correct","Accepted: "+g(r,"Correct")+(tp==="NUM"&&g(r,"Tolerance")?" (± "+g(r,"Tolerance")+")":"")));
+    [["Correct feedback","Correct feedback"],["Incorrect feedback","Incorrect feedback"],["General feedback","General feedback"]].forEach(([k,lab])=>{if(g(r,k)){const d=el("div","gfb");d.appendChild(el("strong",null,lab+": "));d.appendChild(document.createTextNode(g(r,k)));box.appendChild(d);}});
+    if(errs[i].length){const d=el("div","errs");errs[i].forEach(e=>d.appendChild(el("div",null,"⚠ "+e)));box.appendChild(d);}
+    pv.appendChild(box);
+  });
+  st.hidden=false;
+  if(nErr){st.className="status bad";st.textContent=[nErr+" problem"+(nErr>1?"s":"")+" to fix before download."].concat(poolErrs,["Ask the agent to correct those rows, or edit them in the box. The check reruns as you type."]).join(" ");sum.textContent="";return;}
+  if(!$("title").value.trim()){st.className="status bad";st.textContent="All "+recs.length+" rows look fine. Add a quiz title to enable download.";return;}
+  const b=build(recs,$("title").value.trim(),$("desc").value.trim());current=b;
+  st.className="status ok";st.textContent="All "+recs.length+" rows look fine."+(t.dups?" "+t.dups+" repeated row"+(t.dups>1?"s were":" was")+" removed (the agent's reply was probably pasted twice).":"");
+  sum.textContent="Questions each student sees: "+b.seen+(b.cases?" · Case texts: "+b.cases:"")+" · Total points: "+b.total+(b.notes.length?" · Pools: "+b.notes.join("; "):"");
+  dl.disabled=false;
+  const hb=buildH5P(recs,$("title").value.trim(),h5pOpts());
+  const notes=[];if(hb.skipped.length)notes.push("Not included in H5P (no matching H5P question type): "+hb.skipped.join(", ")+".");
+  if(hb.pools)notes.push("Pools are ignored in H5P; every question is included.");
+  notes.push(hb.count+" question"+(hb.count===1?"":"s")+" will go into the H5P set.");
+  $("h5pNote").textContent=notes.join(" ");$("h5pBtn").disabled=hb.count===0;
+}
+$("csv").addEventListener("input",refresh);$("title").addEventListener("input",refresh);$("desc").addEventListener("input",refresh);
+$("openBtn").onclick=()=>$("file").click();
+$("file").onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{$("csv").value=rd.result;if(!$("title").value)$("title").value=f.name.replace(/\.csv$/i,"");refresh();};rd.readAsText(f,"utf-8");};
+$("clearBtn").onclick=()=>{$("csv").value="";refresh();};
+$("h5pBtn").onclick=()=>{
+  const title=$("title").value.trim();const recs=toRecords(parseCSV($("csv").value)).recs||[];
+  const hb=buildH5P(recs,title,h5pOpts());const blob=zip(hb.files);const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download=(title.replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,50)||"quiz")+".h5p";
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+};
+["h5pSolutions","h5pShuffle","h5pPass"].forEach(id=>$(id).addEventListener("input",refresh));
+$("dlBtn").onclick=()=>{
+  const title=$("title").value.trim();const b=build(parseCSV($("csv").value).length?toRecords(parseCSV($("csv").value)).recs:[],title,$("desc").value.trim());
+  const blob=zip(b.files);const a=document.createElement("a");
+  const d=new Date(),stamp=d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0");
+  a.href=URL.createObjectURL(blob);a.download=(title.replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,50)||"quiz")+"_QTI_"+stamp+".zip";
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+};
+</script>
+
+
+</body></html>
