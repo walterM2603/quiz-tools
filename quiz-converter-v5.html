@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiz and H5P Converter</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1d2430;--muted:#5b6575;--line:#d9dee6;--accent:#1f5f99;--accent-ink:#fff;--ok:#1e7a46;--ok-bg:#e8f5ed;--bad:#b3261e;--bad-bg:#fdecea;--chip:#eef2f7}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--card:#1d2128;--ink:#e6e9ee;--muted:#9aa3b2;--line:#323844;--accent:#6ea8e0;--accent-ink:#0d1117;--ok:#6fcf97;--ok-bg:#16291e;--bad:#f28b82;--bad-bg:#2c1716;--chip:#262b34}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.5rem;margin:0 0 4px}
+h2{font-size:1.1rem;margin:0 0 10px}
+p{margin:0 0 10px}
+.muted{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin:16px 0}
+label{display:block;font-weight:600;margin:10px 0 4px}
+input[type=text],textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit}
+textarea{min-height:160px;font-family:ui-monospace,Consolas,monospace;font-size:13px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+button{font:inherit;padding:9px 16px;border-radius:8px;border:1px solid var(--accent);background:var(--card);color:var(--accent);cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.status{padding:10px 12px;border-radius:8px;margin-top:12px}
+.status.ok{background:var(--ok-bg);color:var(--ok)}
+.status.bad{background:var(--bad-bg);color:var(--bad)}
+.q{border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0;background:var(--card)}
+.dl-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+.dl-opt{border:1px solid var(--line);border-radius:10px;padding:12px}
+.dl-opt h3{margin:0 0 8px;font-size:1rem}
+.small{font-size:13px;margin-top:10px}
+.chk{display:block;font-weight:400;margin:6px 0}
+@media (max-width:700px){.dl-grid{grid-template-columns:1fr}}
+.design{background:var(--chip);border-radius:8px;padding:10px 12px;margin:10px 0;font-size:14px}
+.design ul{margin:6px 0 0 18px;padding:0}
+.q.chapter{border-left:4px solid var(--ok)}
+.arrow{font-size:13px;color:var(--muted);margin-top:4px}
+.warn{color:#b45309;font-size:13px;margin-top:4px}
+.q.case{border-left:4px solid var(--accent)}
+.q.case .stem{font-weight:400}
+.q.err{border-color:var(--bad);background:var(--bad-bg)}
+.meta{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.stem{font-weight:600;margin-bottom:8px;white-space:pre-wrap}
+.opt{background:var(--chip);border-radius:8px;padding:8px 10px;margin:6px 0}
+.opt.correct{outline:2px solid var(--ok)}
+.opt .fb{font-size:13px;color:var(--muted);margin-top:4px}
+.gfb{font-size:13px;margin-top:6px}
+.errs{color:var(--bad);font-size:13px;margin-top:6px}
+ol{margin:6px 0 0 20px;padding:0}
+code{background:var(--chip);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<main>
+<h1>Quiz and H5P Converter</h1>
+<p class="muted">Turns the CSV from the course agents into a Canvas quiz (.zip), or an H5P Question Set, Interactive Book, Course Presentation or Branching Scenario (.h5p), with all feedback included. The page works out which from the header row. Everything happens in this page; nothing is uploaded anywhere.</p>
+
+<div class="card">
+<h2>1. Title and description</h2>
+<label for="title">Title (required)</label>
+<input id="title" type="text" placeholder="e.g. PHYT2xxx Week 5 quiz: ankle and foot">
+<label for="desc">Description (optional; used for the quiz description, the Interactive Book cover or the Branching Scenario subtitle)</label>
+<input id="desc" type="text" placeholder="Shown to students at the start of the quiz">
+</div>
+
+<div class="card">
+<h2>2. Paste the CSV</h2>
+<p>Paste the whole CSV block from the agent, including the header row, or open a saved .csv file. Quiz CSVs start <code>Pool,Pick,Type</code>. Interactive Book and Course Presentation CSVs start <code>Type,Title,Text</code> (CHAPTER rows make a book; SLIDE rows make a presentation). Branching Scenario CSVs start <code>ID,Type,Title,Text,Next</code>. If the agent exported in batches, paste each batch below the last; repeated header rows are ignored.</p>
+<textarea id="csv" spellcheck="false" placeholder="Pool,Pick,Type,Points,Question,Correct,..."></textarea>
+<div class="row">
+<button id="openBtn" type="button">Open a .csv file</button>
+<input id="file" type="file" accept=".csv,text/csv" hidden>
+<button id="clearBtn" type="button">Clear</button>
+</div>
+<div id="status" class="status" hidden></div>
+</div>
+
+<div class="card">
+<h2>3. Download</h2>
+<p id="summary" class="muted">Paste a CSV to see a summary.</p>
+<div id="dlQuiz"><div class="dl-grid">
+<div class="dl-opt">
+<h3>Canvas New Quiz</h3>
+<button id="dlBtn" class="primary" type="button" disabled>Download Canvas quiz (.zip)</button>
+<p class="muted small"><strong>Then in Canvas:</strong> create a New Quiz with the same title, open <strong>Build</strong>, select the Options menu (three dots) &gt; <strong>Import Content</strong>, and upload the .zip. Leave it unpublished while you preview it. Set attempts, time limit, dates and when students see feedback in the quiz <strong>Settings</strong>.</p>
+</div>
+<div class="dl-opt">
+<h3>H5P Question Set (practice)</h3>
+<label class="chk"><input type="checkbox" id="h5pSolutions" checked> Let students reveal the correct answer</label>
+<label class="chk"><input type="checkbox" id="h5pShuffle" checked> Shuffle the answer options</label>
+<label class="chk">Pass mark <input type="number" id="h5pPass" value="50" min="0" max="100" style="width:70px"> %</label>
+<button id="h5pBtn" class="primary" type="button" disabled>Download H5P (.h5p)</button>
+<p id="h5pNote" class="muted small"></p>
+<p class="muted small"><strong>Then in H5P:</strong> choose <strong>Add content</strong> &gt; <strong>Upload</strong>, select the .h5p file, then check it in preview before adding it to Canvas.</p>
+</div>
+</div></div>
+<div id="dlBook" hidden><div class="dl-opt">
+<h3>H5P Interactive Book</h3>
+<label class="chk"><input type="checkbox" id="bookSolutions" checked> Let students reveal the correct answer</label>
+<button id="bookBtn" class="primary" type="button" disabled>Download Interactive Book (.h5p)</button>
+<p class="muted small"><strong>Then in H5P:</strong> <strong>Add content</strong> &gt; <strong>Upload</strong>, then preview every chapter before adding it to Canvas.</p>
+</div></div>
+<div id="dlSlides" hidden><div class="dl-opt">
+<h3>H5P Course Presentation</h3>
+<label class="chk"><input type="checkbox" id="slidesSolutions" checked> Let students reveal the correct answer</label>
+<label class="chk"><input type="checkbox" id="slidesMenu"> Show a side menu of slide titles</label>
+<button id="slidesBtn" class="primary" type="button" disabled>Download Course Presentation (.h5p)</button>
+<p class="muted small">Each slide has a title, then its text and one activity. <strong>Then in H5P:</strong> <strong>Add content</strong> &gt; <strong>Upload</strong>, then check every slide in preview. To move or resize anything on a slide, open it in the H5P editor.</p>
+</div></div>
+<div id="dlBranch" hidden><div class="dl-opt">
+<h3>H5P Branching Scenario</h3>
+<label class="chk">Scoring <select id="bsScoring"><option value="no-score">No score (reasoning practice)</option><option value="dynamic-score">Add up the scores on each choice</option><option value="static-end-score">Score set by each ending</option></select></label>
+<label class="chk"><input type="checkbox" id="bsBack" checked> Let students go back a step</label>
+<div id="design" class="design"></div>
+<button id="branchBtn" class="primary" type="button" disabled>Download Branching Scenario (.h5p)</button>
+<p class="muted small"><strong>Then in H5P:</strong> <strong>Add content</strong> &gt; <strong>Upload</strong>, then play through every route before adding it to Canvas.</p>
+</div></div>
+</div>
+
+<div class="card">
+<h2>Preview</h2>
+<div id="preview" class="muted">Nothing to preview yet.</div>
+</div>
+</main>
+
+<script>
+"use strict";
+const TYPES={CASE:"text_only_question",MC:"multiple_choice_question",MA:"multiple_answers_question",TF:"true_false_question",SA:"short_answer_question",NUM:"numerical_question",ESSAY:"essay_question",RATING:"multiple_choice_question"};
+const ALIAS={MR:"MA",MCQ:"MC",ESS:"ESSAY",NUMERICAL:"NUM",TEXT:"CASE",STIMULUS:"CASE"};
+const LETTERS="ABCDEF";
+
+function rid(){const a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(16).padStart(2,"0")).join("");}
+function xesc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function aesc(s){return xesc(s).replace(/"/g,"&quot;");}
+function html(t){return xesc("<p>"+xesc(t).replace(/\r?\n/g,"<br/>")+"</p>");}
+function mat(t){return '<material><mattext texttype="text/html">'+html(t)+'</mattext></material>';}
+function fbx(id,t){return '<itemfeedback ident="'+id+'"><flow_mat>'+mat(t)+'</flow_mat></itemfeedback>';}
+function num(x){const v=Number(String(x).replace(/,/g,"").trim());if(String(x).trim()===""||isNaN(v))throw new Error("nan");return v;}
+function isNum(x){try{num(x);return true}catch(e){return false}}
+
+function parseCSV(text){
+  text=text.replace(/^﻿/,"");
+  const rows=[];let row=[],f="",q=false,prevClosed=false,wsSinceClose=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else {q=false;prevClosed=true;} } else f+=c; }
+    else if(prevClosed&&(c===' '||c==='\t')){ wsSinceClose=true; }
+    else if(c==='"'){ if(f.trim()!==""||(prevClosed&&wsSinceClose)){ row.push(f.trim()); rows.push(row); row=[]; f=""; } q=true; prevClosed=false; wsSinceClose=false; }
+    else if(c===','){ row.push(f); f=""; prevClosed=false; wsSinceClose=false; }
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n')i++; row.push(f); rows.push(row); row=[]; f=""; prevClosed=false; wsSinceClose=false; }
+    else { f+=c; prevClosed=false; }
+  }
+  if(f!==""||row.length){row.push(f);rows.push(row);}
+  return rows.filter(r=>r.some(x=>x.trim()!==""));
+}
+
+function toRecords(rows){
+  if(!rows.length)return {err:"No rows found."};
+  const head=rows[0].map(h=>h.trim().toLowerCase());
+  const mode=detectMode(head);
+  if(!head.includes("type")||(mode==="quiz"&&!head.includes("question")))
+    return {err:"The first row must be the header row from the agent (for example Pool,Pick,Type,Points,Question,... or Type,Title,Text,... or ID,Type,Title,Text,Next,...). Copy the whole block, including the first line."};
+  const hsig=head.join("|");
+  const all=rows.slice(1).filter(r=>r.map(h=>h.trim().toLowerCase()).join("|")!==hsig).map(r=>{const o={};head.forEach((h,i)=>o[h]=(r[i]||"").trim());return o;});
+  const seenKeys=new Set(),recs=[];let dups=0;
+  all.forEach(o=>{const k=Object.values(o).join("\u0001");if(seenKeys.has(k)){dups++;return;}seenKeys.add(k);recs.push(o);});
+  return {recs,dups,mode};
+}
+const g=(r,k)=>(r[k.toLowerCase()]||"").trim();
+function looksLikeCase(r){return !g(r,"Question")&&!g(r,"Option A")&&!g(r,"Correct")&&!!g(r,"General feedback");}
+function typeOf(r){let t=g(r,"Type").toUpperCase();t=ALIAS[t]||t;return looksLikeCase(r)?"CASE":t;}
+function caseText(r){return (g(r,"Question")||g(r,"General feedback")).replace(/\s*Keep in this order;? do not shuffle or pool\.?/i,"");}
+
+function check(recs){
+  const errs=recs.map(()=>[]);const pools={};
+  recs.forEach((r,i)=>{
+    const e=errs[i],t=typeOf(r);
+    if(!TYPES[t]){e.push("Type '"+g(r,"Type")+"' must be one of "+Object.keys(TYPES).join(", "));return;}
+    if(t==="CASE"){ if(!caseText(r))e.push("Case text is empty"); return; }
+    if(!g(r,"Question"))e.push("Question is empty");
+    const pts=g(r,"Points")||"1";
+    if(!isNum(pts)||num(pts)<0)e.push("Points '"+pts+"' is not a number");
+    const opts=[...LETTERS].filter(L=>g(r,"Option "+L));
+    const c=g(r,"Correct").toUpperCase().replace(/\s/g,"");
+    if(["MC","MA","RATING"].includes(t)&&opts.length<2)e.push("Needs at least two options");
+    if(t==="MC"&&(c.length!==1||!opts.includes(c)))e.push("Correct must be one filled option letter (got '"+c+"')");
+    if(t==="MA"&&(!c||c.split(",").some(x=>!opts.includes(x))))e.push("Correct must list filled option letters, e.g. A,C (got '"+c+"')");
+    if(t==="TF"&&!["TRUE","FALSE"].includes(c))e.push("Correct must be True or False");
+    if(t==="SA"&&!g(r,"Correct"))e.push("Correct must list accepted answers separated by |");
+    if(t==="NUM"&&(!isNum(g(r,"Correct"))||!isNum(g(r,"Tolerance")||"0")))e.push("Correct and Tolerance must be numbers");
+    const p=g(r,"Pool");if(p)(pools[p]=pools[p]||[]).push(i);
+  });
+  const poolErrs=[];
+  for(const [p,m] of Object.entries(pools)){
+    const picks=m.map(i=>g(recs[i],"Pick")).filter(Boolean);
+    const n=picks.length?Math.floor(Number(picks[0])):m.length;
+    if(!(n>=1&&n<=m.length))poolErrs.push("Pool '"+p+"': Pick must be between 1 and "+m.length);
+  }
+  return {errs,poolErrs};
+}
+
+function item(r){
+  const t=typeOf(r),qid="q_"+rid();
+  if(t==="CASE"){
+    const txt=caseText(r);
+    const meta=[["question_type","text_only_question"],["points_possible","0"],["original_answer_ids",""],["assessment_question_identifierref","ref_"+qid]]
+      .map(kv=>"<qtimetadatafield><fieldlabel>"+kv[0]+"</fieldlabel><fieldentry>"+kv[1]+"</fieldentry></qtimetadatafield>").join("");
+    return {xml:'<item ident="'+qid+'" title="'+aesc(txt.replace(/\s+/g," ").slice(0,60))+'"><itemmetadata><qtimetadata>'+meta+'</qtimetadata></itemmetadata><presentation>'+mat(txt)+'</presentation></item>',pts:0,isCase:true};
+  }
+  const pts=g(r,"Points")||"1";
+  const gen=g(r,"General feedback");let cor=g(r,"Correct feedback"),inc=g(r,"Incorrect feedback");
+  if(t==="RATING"){cor="";inc="";}
+  let choices=[],pres="";const conds=[],fbs=[];
+  if(["MC","MA","RATING","TF"].includes(t)){
+    let opts,right;
+    if(t==="TF"){opts=[["True",""],["False",""]];right=[g(r,"Correct").toUpperCase()==="TRUE"?"A":"B"];}
+    else{opts=[...LETTERS].filter(L=>g(r,"Option "+L)).map(L=>[g(r,"Option "+L),g(r,"Feedback "+L)]);
+      right=g(r,"Correct").toUpperCase().replace(/\s/g,"").split(",").filter(Boolean);
+      if(t==="RATING")right=[...LETTERS.slice(0,opts.length)];}
+    const ids=opts.map(()=>"c_"+rid());choices=ids;
+    const card=t==="MA"?"Multiple":"Single";
+    const labels=opts.map((o,k)=>'<response_label ident="'+ids[k]+'">'+mat(o[0])+'</response_label>').join("");
+    pres='<response_lid ident="response1" rcardinality="'+card+'"><render_choice>'+labels+'</render_choice></response_lid>';
+    opts.forEach((o,k)=>{if(o[1]){conds.push('<respcondition continue="Yes"><conditionvar><varequal respident="response1">'+ids[k]+'</varequal></conditionvar><displayfeedback feedbacktype="Response" linkrefid="'+ids[k]+'_fb"/></respcondition>');fbs.push(fbx(ids[k]+"_fb",o[1]));}});
+    const rset=right.map(x=>ids[LETTERS.indexOf(x)]);
+    const disp=cor?'<displayfeedback feedbacktype="Response" linkrefid="correct_fb"/>':"";
+    if(t==="MA"){const parts=ids.map(i=>rset.includes(i)?'<varequal respident="response1">'+i+'</varequal>':'<not><varequal respident="response1">'+i+'</varequal></not>').join("");
+      conds.push('<respcondition continue="No"><conditionvar><and>'+parts+'</and></conditionvar><setvar action="Set" varname="SCORE">100</setvar>'+disp+'</respcondition>');}
+    else rset.forEach(i=>conds.push('<respcondition continue="No"><conditionvar><varequal respident="response1">'+i+'</varequal></conditionvar><setvar action="Set" varname="SCORE">100</setvar>'+disp+'</respcondition>'));
+  } else {
+    const fib=t==="NUM"?'<render_fib fibtype="Decimal"><response_label ident="answer1"/></render_fib>':'<render_fib><response_label ident="answer1" rshuffle="No"/></render_fib>';
+    pres='<response_str ident="response1" rcardinality="Single">'+fib+'</response_str>';
+    const disp=cor?'<displayfeedback feedbacktype="Response" linkrefid="correct_fb"/>':"";
+    if(t==="SA"){const eq=g(r,"Correct").split("|").map(a=>a.trim()).filter(Boolean).map(a=>'<varequal respident="response1">'+xesc(a)+'</varequal>').join("");
+      conds.push('<respcondition continue="No"><conditionvar>'+eq+'</conditionvar><setvar action="Set" varname="SCORE">100</setvar>'+disp+'</respcondition>');choices=["a_"+rid()];}
+    else if(t==="NUM"){const v=num(g(r,"Correct")),tol=Math.abs(num(g(r,"Tolerance")||"0"));
+      conds.push('<respcondition continue="No"><conditionvar><or><varequal respident="response1">'+v.toFixed(4)+'</varequal><and><vargte respident="response1">'+(v-tol).toFixed(4)+'</vargte><varlte respident="response1">'+(v+tol).toFixed(4)+'</varlte></and></or></conditionvar><setvar action="Set" varname="SCORE">100</setvar>'+disp+'</respcondition>');choices=["n_"+rid()];}
+    else conds.push('<respcondition continue="No"><conditionvar><other/></conditionvar></respcondition>');
+  }
+  if(gen){conds.unshift('<respcondition continue="Yes"><conditionvar><other/></conditionvar><displayfeedback feedbacktype="Response" linkrefid="general_fb"/></respcondition>');fbs.unshift(fbx("general_fb",gen));}
+  if(cor&&t!=="ESSAY")fbs.push(fbx("correct_fb",cor));
+  if(inc&&t!=="ESSAY"){conds.push('<respcondition continue="Yes"><conditionvar><other/></conditionvar><displayfeedback feedbacktype="Response" linkrefid="general_incorrect_fb"/></respcondition>');fbs.push(fbx("general_incorrect_fb",inc));}
+  const title=aesc(g(r,"Question").replace(/\s+/g," ").slice(0,60));
+  const meta=[["question_type",TYPES[t]],["points_possible",pts],["original_answer_ids",choices.join(",")],["assessment_question_identifierref","ref_"+qid]]
+    .map(kv=>"<qtimetadatafield><fieldlabel>"+kv[0]+"</fieldlabel><fieldentry>"+kv[1]+"</fieldentry></qtimetadatafield>").join("");
+  return {xml:'<item ident="'+qid+'" title="'+title+'"><itemmetadata><qtimetadata>'+meta+'</qtimetadata></itemmetadata><presentation>'+mat(g(r,"Question"))+pres+'</presentation><resprocessing><outcomes><decvar maxvalue="100" minvalue="0" varname="SCORE" vartype="Decimal"/></outcomes>'+conds.join("")+'</resprocessing>'+fbs.join("")+'</item>',pts:num(pts)};
+}
+
+function build(recs,title,description){
+  const aid="quiz_"+rid();const body=[],order=[],pools={};let total=0,seen=0,cases=0;const notes=[];
+  recs.forEach(r=>{const p=g(r,"Pool");if(p){if(!pools[p]){pools[p]=[];order.push(["pool",p]);}pools[p].push(r);}else order.push(["item",r]);});
+  order.forEach(([k,v])=>{
+    if(k==="item"){const it=item(v);body.push(it.xml);total+=it.pts;if(it.isCase)cases++;else seen++;}
+    else{const m=pools[v];const picks=m.map(r=>g(r,"Pick")).filter(Boolean);const n=picks.length?Math.floor(Number(picks[0])):m.length;
+      const each=num(g(m[0],"Points")||"1");
+      body.push('<section ident="g_'+rid()+'" title="'+aesc(v)+'"><selection_ordering><selection><selection_number>'+n+'</selection_number><selection_extension><points_per_item>'+each+'</points_per_item></selection_extension></selection></selection_ordering>'+m.map(r=>item(r).xml).join("")+'</section>');
+      total+=n*each;seen+=n;notes.push(v+": "+n+" of "+m.length+" drawn");}
+  });
+  const qti='<?xml version="1.0" encoding="UTF-8"?><questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2"><assessment ident="'+aid+'" title="'+aesc(title)+'"><qtimetadata><qtimetadatafield><fieldlabel>cc_maxattempts</fieldlabel><fieldentry>1</fieldentry></qtimetadatafield></qtimetadata><section ident="root_section">'+body.join("")+'</section></assessment></questestinterop>';
+  const qmeta='<?xml version="1.0" encoding="UTF-8"?><quiz identifier="'+aid+'" xmlns="http://canvas.instructure.com/xsd/cccv1p0"><title>'+xesc(title)+'</title><description>'+(description?html(description):"")+'</description><shuffle_answers>false</shuffle_answers><scoring_policy>keep_highest</scoring_policy><quiz_type>assignment</quiz_type><points_possible>'+total+'</points_possible><show_correct_answers>true</show_correct_answers><allowed_attempts>1</allowed_attempts><available>false</available></quiz>';
+  const man='<?xml version="1.0" encoding="UTF-8"?><manifest identifier="man_'+aid+'" xmlns="http://www.imsglobal.org/xsd/imsccv1p1/imscp_v1p1"><metadata><schema>IMS Content</schema><schemaversion>1.1.3</schemaversion></metadata><organizations/><resources><resource identifier="'+aid+'" type="imsqti_xmlv1p2"><file href="'+aid+'/'+aid+'.xml"/><dependency identifierref="dep_'+aid+'"/></resource><resource identifier="dep_'+aid+'" type="associatedcontent/imscc_xmlv1p1/learning-application-resource" href="'+aid+'/assessment_meta.xml"><file href="'+aid+'/assessment_meta.xml"/></resource></resources></manifest>';
+  return {cases,files:[["imsmanifest.xml",man],[aid+"/"+aid+".xml",qti],[aid+"/assessment_meta.xml",qmeta]],total,seen,notes};
+}
+
+/* Minimal zip writer (stored, no compression) */
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function zip(files){
+  const enc=new TextEncoder(),parts=[],cd=[];let off=0;
+  const d=new Date(),dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF,dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+  for(const [name,text] of files){
+    const nb=enc.encode(name),data=enc.encode(text),crc=crc32(data);
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(8,0,true);
+    lh.setUint16(10,dt,true);lh.setUint16(12,dd,true);lh.setUint32(14,crc,true);lh.setUint32(18,data.length,true);lh.setUint32(22,data.length,true);
+    lh.setUint16(26,nb.length,true);lh.setUint16(28,0,true);
+    parts.push(new Uint8Array(lh.buffer),nb,data);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);ch.setUint16(10,0,true);
+    ch.setUint16(12,dt,true);ch.setUint16(14,dd,true);ch.setUint32(16,crc,true);ch.setUint32(20,data.length,true);ch.setUint32(24,data.length,true);
+    ch.setUint16(28,nb.length,true);ch.setUint16(30,0,true);ch.setUint16(32,0,true);ch.setUint16(34,0,true);ch.setUint16(36,0,true);ch.setUint32(38,0,true);ch.setUint32(42,off,true);
+    cd.push(new Uint8Array(ch.buffer),nb);
+    off+=30+nb.length+data.length;
+  }
+  const cdSize=cd.reduce((s,a)=>s+a.length,0);
+  const end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);end.setUint32(12,cdSize,true);end.setUint32(16,off,true);
+  return new Blob([...parts,...cd,new Uint8Array(end.buffer)],{type:"application/zip"});
+}
+
+
+/* H5P Question Set builder (versions taken from a Flinders H5P export) */
+const H5P_DEPS=[{"machineName": "FontAwesome", "majorVersion": 4, "minorVersion": 5}, {"machineName": "H5P.FontIcons", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Transition", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.JoubelUI", "majorVersion": 1, "minorVersion": 3}, {"machineName": "jQuery.ui", "majorVersion": 1, "minorVersion": 10}, {"machineName": "H5P.Components", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Question", "majorVersion": 1, "minorVersion": 5}, {"machineName": "H5P.MultiChoice", "majorVersion": 1, "minorVersion": 16}, {"machineName": "H5P.TrueFalse", "majorVersion": 1, "minorVersion": 8}, {"machineName": "H5P.Video", "majorVersion": 1, "minorVersion": 6}, {"machineName": "H5P.QuestionSet", "majorVersion": 1, "minorVersion": 21}];
+function uuid(){const b=new Uint8Array(16);crypto.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,x=>x.toString(16).padStart(2,"0")).join("");return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20);}
+function he(t){return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\r?\n/g,"<br>");}
+const CONFIRM_CHECK={header:"Finish ?",body:"Are you sure you wish to finish ?",cancelLabel:"Cancel",confirmLabel:"Finish"};
+const CONFIRM_RETRY={header:"Retry ?",body:"Are you sure you wish to retry ?",cancelLabel:"Cancel",confirmLabel:"Confirm"};
+function h5pMC(r,casePrefix,opts){
+  const t=typeOf(r);const right=g(r,"Correct").toUpperCase().replace(/\s/g,"").split(",").filter(Boolean);
+  const answers=[...LETTERS].filter(L=>g(r,"Option "+L)).map(L=>({correct:right.includes(L),tipsAndFeedback:{tip:"",chosenFeedback:g(r,"Feedback "+L)?"<div>"+he(g(r,"Feedback "+L))+"</div>":"",notChosenFeedback:""},text:"<div>"+he(g(r,"Option "+L))+"</div>"}));
+  const gen=g(r,"General feedback"),cor=g(r,"Correct feedback"),inc=g(r,"Incorrect feedback");
+  const join=(a,b)=>[a,b].filter(Boolean).join(" ");
+  const of=(cor||inc)?[{from:0,to:99,feedback:join(inc,gen)},{from:100,to:100,feedback:join(cor,gen)}]:[{from:0,to:100,feedback:gen}];
+  return {params:{media:{disableImageZooming:false},answers,overallFeedback:of,
+    behaviour:{enableRetry:true,enableSolutionsButton:opts.solutions,enableCheckButton:true,type:t==="MA"?"multi":"single",singlePoint:t!=="MA",randomAnswers:opts.shuffle,showSolutionsRequiresInput:true,confirmCheckDialog:false,confirmRetryDialog:false,autoCheck:false,passPercentage:100,showScorePoints:true},
+    UI:{checkAnswerButton:"Check",submitAnswerButton:"Submit",showSolutionButton:"Show solution",tryAgainButton:"Retry",tipsLabel:"Show tip",scoreBarLabel:"You got :num out of :total points",tipAvailable:"Tip available",feedbackAvailable:"Feedback available",readFeedback:"Read feedback",wrongAnswer:"Wrong answer",correctAnswer:"Correct answer",shouldCheck:"Should have been checked",shouldNotCheck:"Should not have been checked",noInput:"Please answer before viewing the solution",a11yCheck:"Check the answers. The responses will be marked as correct, incorrect, or unanswered.",a11yShowSolution:"Show the solution. The task will be marked with its correct solution.",a11yRetry:"Retry the task. Reset all responses and start the task over again."},
+    confirmCheck:CONFIRM_CHECK,confirmRetry:CONFIRM_RETRY,question:casePrefix+"<p>"+he(g(r,"Question"))+"</p>"},
+    library:"H5P.MultiChoice 1.16",metadata:{contentType:"Multiple Choice",license:"U",title:g(r,"Question").replace(/\s+/g," ").slice(0,60)},subContentId:uuid()};
+}
+function h5pTF(r,casePrefix,opts){
+  const gen=g(r,"General feedback");const join=(a,b)=>[a,b].filter(Boolean).join(" ");
+  return {params:{media:{disableImageZooming:false},correct:g(r,"Correct").toUpperCase()==="TRUE"?"true":"false",
+    behaviour:{enableRetry:true,enableSolutionsButton:opts.solutions,enableCheckButton:true,confirmCheckDialog:false,confirmRetryDialog:false,autoCheck:false,feedbackOnCorrect:join(g(r,"Correct feedback")||"Correct.",gen),feedbackOnWrong:join(g(r,"Incorrect feedback")||"Not quite.",gen)},
+    l10n:{trueText:"True",falseText:"False",score:"You got @score of @total points",checkAnswer:"Check",submitAnswer:"Submit",showSolutionButton:"Show solution",tryAgain:"Retry",wrongAnswerMessage:"Wrong answer",correctAnswerMessage:"Correct answer",scoreBarLabel:"You got :num out of :total points",a11yCheck:"Check the answers. The responses will be marked as correct, incorrect, or unanswered.",a11yShowSolution:"Show the solution. The task will be marked with its correct solution.",a11yRetry:"Retry the task. Reset all responses and start the task over again."},
+    confirmCheck:CONFIRM_CHECK,confirmRetry:CONFIRM_RETRY,question:casePrefix+"<p>"+he(g(r,"Question"))+"</p>"},
+    library:"H5P.TrueFalse 1.8",metadata:{contentType:"True/False Question",license:"U",title:g(r,"Question").replace(/\s+/g," ").slice(0,60)},subContentId:uuid()};
+}
+function buildH5P(recs,title,opts){
+  const questions=[],skipped=[];let pendingCase="",pools=false;
+  recs.forEach((r,i)=>{
+    const t=typeOf(r);if(g(r,"Pool"))pools=true;
+    if(t==="CASE"){const ct=caseText(r);pendingCase=(/^case\b/i.test(ct)?"":"<p><strong>Case</strong></p>")+"<p>"+he(ct)+"</p><hr>";return;}
+    if(t==="MC"||t==="MA"){questions.push(h5pMC(r,pendingCase,opts));pendingCase="";}
+    else if(t==="TF"){questions.push(h5pTF(r,pendingCase,opts));pendingCase="";}
+    else skipped.push("row "+(i+2)+" ("+t+")");
+  });
+  const content={introPage:{showIntroPage:false,startButtonText:"Start Quiz",introduction:""},progressType:questions.length>12?"textual":"dots",passPercentage:opts.pass,questions,
+    disableBackwardsNavigation:false,randomQuestions:false,
+    endGame:{showResultPage:true,showSolutionButton:opts.solutions,showRetryButton:true,noResultMessage:"Finished",message:"Results",amountCorrect:"@finals of @totals correct",scoreBarLabel:"You got @finals out of @totals points",scoreHeader:"Score",overallFeedback:[{from:0,to:100}],solutionButtonText:"Show solution",retryButtonText:"Retry",finishButtonText:"Finish",submitButtonText:"Submit",showAnimations:false,skippable:false,skipButtonText:"Skip video"},
+    override:{checkButton:true,showSolutionButton:opts.solutions?"on":"off",retryButton:"on"},
+    texts:{prevButton:"Previous question",previous:"Previous",nextButton:"Next question",next:"Next",finishButton:"Finish",submitButton:"Submit",textualProgress:"Question: @current of @total questions",jumpToQuestion:"Question %d of %total",questionLabel:"Question",readSpeakerProgress:"Question @current of @total",unansweredText:"Unanswered",answeredText:"Answered",currentQuestionText:"Current question",navigationLabel:"Questions",questionSetInstruction:"Choose question to display"}};
+  const h5pjson={title,language:"en",mainLibrary:"H5P.QuestionSet",embedTypes:["div"],license:"U",defaultLanguage:"en",preloadedDependencies:H5P_DEPS};
+  return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify(content)]],count:questions.length,skipped,pools};
+}
+function h5pOpts(){let pass=parseInt($("h5pPass").value,10);if(isNaN(pass))pass=50;pass=Math.max(0,Math.min(100,pass));return {solutions:$("h5pSolutions").checked,shuffle:$("h5pShuffle").checked,pass};}
+
+
+/* ===== Interactive Book and Branching Scenario (templates cloned from Flinders H5P exports) ===== */
+const TPL={"bookTop": {"showCoverPage": true, "behaviour": {"defaultTableOfContents": true, "progressIndicators": true, "progressAuto": true, "displaySummary": true, "baseColor": "#1768c4", "enableRetry": true}, "read": "Read", "displayTOC": "Display table of contents", "hideTOC": "Hide table of contents", "nextPage": "Next page", "previousPage": "Previous page", "chapterCompleted": "Page completed!", "partCompleted": "@pages page(s) completed", "incompleteChapter": "Incomplete page", "navigateToTop": "Navigate to the top", "markAsFinished": "I have finished this page", "fullscreen": "Fullscreen", "exitFullscreen": "Exit fullscreen", "bookProgressSubtext": "@count of @total chapters", "interactionsProgressSubtext": "@count of @total interactions", "submitReport": "Submit Report", "restartLabel": "Restart", "summaryHeader": "Summary", "allInteractions": "All interactions", "unansweredInteractions": "Unanswered interactions", "scoreText": "Score", "leftOutOfTotalCompleted": "@left of @total interactions completed", "noInteractions": "No interactions", "score": "Score", "summaryAndSubmit": "Summary &amp; submit", "noChapterInteractionBoldText": "You have not interacted with any pages.", "noChapterInteractionText": "You have to interact with at least one page before you can see the summary.", "yourAnswersAreSubmittedForReview": "Your answers are submitted for review.", "bookProgress": "Book progress", "interactionsProgress": "Interactions progress", "a11y": {"progress": "Page @page of @total.", "menu": "Toggle navigation menu"}, "totalScoreLabel": "Total score", "page": "Page", "next": "Next", "previous": "Previous"}, "bookDeps": [{"machineName": "jQuery.ui", "majorVersion": 1, "minorVersion": 10}, {"machineName": "H5P.Components", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Image", "majorVersion": 1, "minorVersion": 1}, {"machineName": "H5P.AdvancedText", "majorVersion": 1, "minorVersion": 1}, {"machineName": "FontAwesome", "majorVersion": 4, "minorVersion": 5}, {"machineName": "H5P.FontIcons", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Transition", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.JoubelUI", "majorVersion": 1, "minorVersion": 3}, {"machineName": "H5P.Question", "majorVersion": 1, "minorVersion": 5}, {"machineName": "H5P.MultiChoice", "majorVersion": 1, "minorVersion": 16}, {"machineName": "H5P.SingleChoiceSet", "majorVersion": 1, "minorVersion": 11}, {"machineName": "H5P.Column", "majorVersion": 1, "minorVersion": 22}, {"machineName": "H5P.DragText", "majorVersion": 1, "minorVersion": 10}, {"machineName": "H5P.InteractiveBook", "majorVersion": 1, "minorVersion": 15}], "dragParams": {"taskDescription": "<p>Drag the correct category label to complete each statement about the reasoning role of these early findings.</p>", "checkAnswer": "Check", "tryAgain": "Retry", "showSolution": "Show Solution", "behaviour": {"enableRetry": true, "enableSolutionsButton": true, "instantFeedback": false, "enableCheckButton": true}, "textField": "P1 is a 2\u20133/10 cervical ache that spikes to 9/10 on aggravation. This large gap between resting and aggravated pain is most relevant to *symptom severity and irritability* reasoning \u2014 it suggests the presentation may not tolerate a full provocative O/E without modification.\n\nP2 emerges after P1 is aggravated. The fact that P2 appears only after P1 is provoked is most relevant to *symptom relationship* reasoning \u2014 it suggests P1 and P2 may share a source or that P2 is a secondary response.\n\nThe absence of pins and needles or numbness is most relevant to *neurological symptom screening* \u2014 a negative finding that reduces (but does not eliminate) the likelihood of a significant neurogenic component at this stage.\n\nThe intensity alone (2\u20133/10 resting) is *not yet enough to interpret* in isolation \u2014 it must be read alongside behaviour, aggravating factors and the 9/10 spike before forming a severity or irritability judgement.", "overallFeedback": [{"from": 0, "to": 49, "feedback": "Review the case carefully and try again."}, {"from": 50, "to": 79, "feedback": "Good effort \u2014 check the answers you missed."}, {"from": 80, "to": 100, "feedback": "Excellent work!"}], "dropZoneIndex": "Drop Zone @index.", "empty": "Drop Zone @index is empty.", "contains": "Drop Zone @index contains draggable @draggable.", "tipLabel": "Show tip", "correctText": "Correct!", "incorrectText": "Incorrect!", "resetDropTitle": "Reset drop", "resetDropDescription": "Are you sure you want to reset this drop zone?", "grabbed": "Draggable is grabbed.", "cancelledDragging": "Cancelled dragging.", "correctAnswer": "Correct answer:", "feedbackHeader": "Feedback", "scoreBarLabel": "You got :num out of :total points", "a11yCheck": "Check the answers.", "a11yShowSolution": "Show the solution.", "a11yRetry": "Retry the task.", "media": {"disableImageZooming": false}, "submitAnswer": "Submit", "ariaDraggableIndex": "@index of @count draggables."}, "bsTop": {"startScreen": {"startScreenTitle": "Which Cervical Problem Space Are You In?", "startScreenSubtitle": "Week 11 \u2014 Neurogenic \u00b7 TOS \u00b7 Red Flags \u00b7 Motor Control | Clinical Reasoning Under Uncertainty"}, "endScreens": [{"contentId": -1, "endScreenScore": 0, "endScreenTitle": "Activity complete", "endScreenSubtitle": "Review the feedback at each decision point \u2014 the quality of your reasoning matters more than selecting the correct option."}], "behaviour": {"enableBackwardsNavigation": true, "forceContentFinished": false, "randomizeBranchingQuestions": false}, "l10n": {"startScreenButtonText": "Start the course", "endScreenButtonText": "Restart the course", "backButtonText": "Back", "disableProceedButtonText": "Require to complete the current module", "replayButtonText": "Replay the video", "scoreText": "Your score:", "fullscreenAria": "Fullscreen"}, "scoringOptionGroup": {"scoringOption": "no-score", "includeInteractionsScores": true}}, "bsDeps": [{"machineName": "H5P.AdvancedText", "majorVersion": 1, "minorVersion": 1}, {"machineName": "FontAwesome", "majorVersion": 4, "minorVersion": 5}, {"machineName": "H5P.FontIcons", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Transition", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.JoubelUI", "majorVersion": 1, "minorVersion": 3}, {"machineName": "jQuery.ui", "majorVersion": 1, "minorVersion": 10}, {"machineName": "H5P.Components", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.CoursePresentation", "majorVersion": 1, "minorVersion": 27}, {"machineName": "H5P.BranchingQuestion", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.BranchingScenario", "majorVersion": 1, "minorVersion": 11}], "bookEmbed": ["div"], "bsEmbed": ["div"]};
+Object.assign(TPL,{"cpTop": {"l10n": {"slide": "Slide", "score": "Score", "yourScore": "Your score", "maxScore": "Max score", "total": "Total", "totalScore": "Total Score", "solutionModeTitle": "Exit solution mode", "solutionModeText": "Solution Mode", "summaryMultipleTaskText": "Multiple tasks", "summary": "Summary", "slides": "Slides", "showSolutions": "Show solutions", "retry": "Retry", "exportAnswers": "Export text", "hideKeywords": "Hide sidebar navigation menu", "showKeywords": "Show sidebar navigation menu", "fullscreen": "Fullscreen", "exitFullscreen": "Exit fullscreen", "prevSlide": "Previous slide", "nextSlide": "Next slide", "currentSlide": "Current slide", "lastSlide": "Last slide", "scoreMessage": "You achieved:", "shareFacebook": "Share on Facebook", "shareTwitter": "Share on Twitter", "shareGoogle": "Share on Google+", "solutionsButtonTitle": "Show comments", "printTitle": "Print", "printIngress": "How would you like to print this presentation?", "printAllSlides": "Print all slides", "printCurrentSlide": "Print current slide", "noTitle": "No title", "accessibilitySlideNavigationExplanation": "Use left and right arrow to change slide in that direction whenever canvas is selected.", "accessibilityCanvasLabel": "Presentation canvas. Use left and right arrow to move between slides.", "accessibilityProgressBarLabel": "Choose slide to display", "containsNotCompleted": "@slideName contains not completed interaction", "containsCompleted": "@slideName contains completed interaction", "slideCount": "Slide @index of @total", "containsOnlyCorrect": "@slideName only has correct answers", "containsIncorrectAnswers": "@slideName has incorrect answers", "resultHeader": "Results", "amountCorrect": "@value / @max correct", "amountCorrectAria": "@value out of @max correct", "shareResult": "Share Result", "accessibilityTotalScore": "You got @score of @maxScore points in total", "accessibilityEnteredFullscreen": "Entered fullscreen", "accessibilityExitedFullscreen": "Exited fullscreen", "confirmDialogHeader": "Submit your answers", "confirmDialogText": "This will submit your results, do you want to continue?", "confirmDialogConfirmText": "Submit and see results", "slideshowNavigationLabel": "Slideshow navigation", "confirmDialogConfirmLabel": "Confirm", "confirmDialogCancelLabel": "Cancel"}, "override": {"activeSurface": false, "enablePrintButton": false, "hideSummarySlide": false, "social": {"facebookShare": {"quote": "I scored @score out of @maxScore on a task at @currentpageurl.", "url": "@currentpageurl"}, "googleShareUrl": "@currentpageurl", "showFacebookShare": false, "showGoogleShare": false, "showTwitterShare": false, "twitterShare": {"hashtags": "", "statement": "I scored @score out of @maxScore.", "url": "@currentpageurl"}}, "summarySlideRetryButton": true, "summarySlideSolutionButton": true}, "presentation": {"globalBackgroundSelector": {"fillGlobalBackground": ""}, "keywordListAlwaysShow": false, "keywordListAutoHide": false, "keywordListEnabled": false, "keywordListOpacity": 90}}, "cpWrap": {"alwaysDisplayComments": false, "backgroundOpacity": 0, "buttonSize": "big", "displayAsButton": false, "goToSlideType": "specified", "invisible": false, "solution": ""}, "cpDeps": [{"machineName": "H5P.AdvancedText", "majorVersion": 1, "minorVersion": 1}, {"machineName": "jQuery.ui", "majorVersion": 1, "minorVersion": 10}, {"machineName": "H5P.Components", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Image", "majorVersion": 1, "minorVersion": 1}, {"machineName": "FontAwesome", "majorVersion": 4, "minorVersion": 5}, {"machineName": "H5P.FontIcons", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Transition", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.JoubelUI", "majorVersion": 1, "minorVersion": 3}, {"machineName": "H5P.Question", "majorVersion": 1, "minorVersion": 5}, {"machineName": "H5P.DragText", "majorVersion": 1, "minorVersion": 10}, {"machineName": "H5P.MultiChoice", "majorVersion": 1, "minorVersion": 16}, {"machineName": "H5P.CoursePresentation", "majorVersion": 1, "minorVersion": 27}], "cpEmbed": ["div"]});
+const clone=o=>JSON.parse(JSON.stringify(o));
+/* Light formatting: "||" or a line break starts a new paragraph, "- " starts a bullet, **bold** */
+function fmt(t){
+  const parts=String(t).split(/\|\||\r?\n/).map(s=>s.trim()).filter(Boolean);
+  let out="",inList=false;
+  parts.forEach(p=>{
+    const bullet=/^[-•]\s+/.test(p);const body=xesc(p.replace(/^[-•]\s+/,"")).replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>");
+    if(bullet){if(!inList){out+="<ul>";inList=true;}out+="<li>"+body+"</li>";}
+    else{if(inList){out+="</ul>";inList=false;}out+="<p>"+body+"</p>";}
+  });
+  if(inList)out+="</ul>";
+  return out;
+}
+function detectMode(head){
+  if(head.includes("id")&&head.includes("next"))return "branch";
+  if(head.includes("type")&&head.includes("text")&&!head.includes("question"))return "book";
+  return "quiz";
+}
+
+/* ---------- Interactive Book ---------- */
+const LTYPES=["CHAPTER","TEXT","MC","MA","TF","DRAG"];
+const lt=r=>{let t=g(r,"Type").toUpperCase();if(t==="MR")t="MA";if(t==="DRAGTEXT"||t==="DRAG THE WORDS")t="DRAG";return t;};
+function checkBook(recs){
+  return recs.map((r,i)=>{
+    const e=[],t=lt(r);
+    if(t==="SLIDE"){e.push("SLIDE rows make a Course Presentation, but this CSV also has CHAPTER rows. Use one or the other");return e;}
+    if(!LTYPES.includes(t)){e.push("Type '"+g(r,"Type")+"' must be one of "+LTYPES.join(", "));return e;}
+    if(t==="CHAPTER"&&!g(r,"Title"))e.push("A CHAPTER row needs a Title");
+    if(t==="TEXT"&&!g(r,"Text"))e.push("Text is empty");
+    if(["MC","MA","TF"].includes(t)){
+      if(!g(r,"Text"))e.push("The question (Text) is empty");
+      const opts=[...LETTERS].filter(L=>g(r,"Option "+L));const c=g(r,"Correct").toUpperCase().replace(/\s/g,"");
+      if(t!=="TF"&&opts.length<2)e.push("Needs at least two options");
+      if(t==="MC"&&(c.length!==1||!opts.includes(c)))e.push("Correct must be one filled option letter (got '"+c+"')");
+      if(t==="MA"&&(!c||c.split(",").some(x=>!opts.includes(x))))e.push("Correct must list filled option letters, e.g. A,C");
+      if(t==="TF"&&!["TRUE","FALSE"].includes(c))e.push("Correct must be True or False");
+    }
+    if(t==="DRAG"){const n=(g(r,"Text").match(/\*[^*]+\*/g)||[]).length;if(n<2)e.push("Drag the words needs at least two *answers* marked with asterisks (found "+n+")");}
+    return e;
+  });
+}
+function asQuizRow(r){const o=Object.assign({},r);o["question"]=g(r,"Text");return o;}
+function colItem(content){return {content,useSeparator:"auto"};}
+function bookText(title,text){return {library:"H5P.AdvancedText 1.1",metadata:{contentType:"Text",license:"U",title:title||"Text"},params:{text:(title?"<h3>"+xesc(title)+"</h3>":"")+fmt(text)},subContentId:uuid()};}
+function bookDrag(r){
+  const p=clone(TPL.dragParams);p.taskDescription=g(r,"Title")?"<p>"+xesc(g(r,"Title"))+"</p>":"<p>Drag the words into the correct places.</p>";
+  p.textField=g(r,"Text").replace(/\|\|/g,"\n\n");
+  const gen=g(r,"General feedback");if(gen)p.overallFeedback=[{from:0,to:100,feedback:gen}];
+  return {library:"H5P.DragText 1.10",metadata:{contentType:"Drag the Words",license:"U",title:(g(r,"Title")||"Drag the words").slice(0,60)},params:p,subContentId:uuid()};
+}
+function unwrapQ(q){return {library:q.library,metadata:q.metadata,params:q.params,subContentId:q.subContentId};}
+function buildBook(recs,title,description,opts){
+  const chapters=[];let cur=null,usesTF=false;
+  const newChap=t=>{cur={library:"H5P.Column 1.22",metadata:{contentType:"Page",license:"U",title:t},params:{content:[]},subContentId:uuid()};chapters.push(cur);};
+  recs.forEach(r=>{
+    const t=lt(r);
+    if(t==="CHAPTER"){newChap(g(r,"Title"));if(g(r,"Text"))cur.params.content.push(colItem(bookText("",g(r,"Text"))));return;}
+    if(!cur)newChap("Chapter 1");
+    if(t==="TEXT")cur.params.content.push(colItem(bookText(g(r,"Title"),g(r,"Text"))));
+    else if(t==="MC"||t==="MA"){const q=h5pMC(asQuizRow(Object.assign({},r,{type:t})),"",opts);if(g(r,"Title"))q.metadata.title=g(r,"Title").slice(0,60);cur.params.content.push(colItem(unwrapQ(q)));}
+    else if(t==="TF"){usesTF=true;const q=h5pTF(asQuizRow(r),"",opts);cur.params.content.push(colItem(unwrapQ(q)));}
+    else if(t==="DRAG")cur.params.content.push(colItem(bookDrag(r)));
+  });
+  const content=Object.assign(clone(TPL.bookTop),{showCoverPage:true,bookCover:{coverDescription:"<p style=\"text-align:center;\">"+xesc(description||title)+"</p>"},chapters});
+  const deps=clone(TPL.bookDeps);if(usesTF)deps.push({machineName:"H5P.TrueFalse",majorVersion:1,minorVersion:8});
+  const h5pjson={title,language:"en",mainLibrary:"H5P.InteractiveBook",embedTypes:TPL.bookEmbed,license:"U",defaultLanguage:"en",preloadedDependencies:deps};
+  return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify(content)]],chapters:chapters.length};
+}
+
+
+/* ---------- Course Presentation (template cloned from a Flinders export) ---------- */
+const ACTS=["MC","MA","TF","DRAG"];
+const words=t=>String(t).replace(/\|\|/g," ").replace(/\*/g,"").split(/\s+/).filter(Boolean).length;
+/* Group rows into slides: a SLIDE row starts a slide; one activity per slide; extra items start a continued slide */
+function groupSlides(recs){
+  const slides=[];let cur=null;
+  const start=(title,i,cont)=>{cur={title,texts:[],act:null,rows:[i],cont:!!cont};slides.push(cur);};
+  recs.forEach((r,i)=>{
+    const t=lt(r);
+    if(t==="SLIDE"){start(g(r,"Title"),i);if(g(r,"Text"))cur.texts.push(g(r,"Text"));return;}
+    if(!cur)start("Slide 1",i);
+    if(t==="TEXT"){if(cur.act)start(cur.title+" (continued)",i,true);else if(cur.rows[cur.rows.length-1]!==i)cur.rows.push(i);cur.texts.push((g(r,"Title")?"**"+g(r,"Title")+"**||":"")+g(r,"Text"));return;}
+    if(ACTS.includes(t)){if(cur.act)start(cur.title+" (continued)",i,true);else if(cur.rows[cur.rows.length-1]!==i)cur.rows.push(i);cur.act={r,t};return;}
+    if(cur.rows[cur.rows.length-1]!==i)cur.rows.push(i);
+  });
+  return slides;
+}
+function checkSlides(recs){
+  const errs=recs.map(()=>[]),warns=recs.map(()=>[]);
+  recs.forEach((r,i)=>{
+    const t=lt(r);
+    if(t==="CHAPTER"){errs[i].push("CHAPTER rows belong in an Interactive Book. In a Course Presentation, use SLIDE");return;}
+    if(t==="SLIDE"){if(!g(r,"Title"))errs[i].push("A SLIDE row needs a Title");return;}
+    errs[i]=checkBook([r])[0];
+  });
+  groupSlides(recs).forEach(s=>{
+    const first=s.rows[0];
+    if(s.cont)warns[first].push("A slide holds one activity, so this starts a new slide: \""+s.title+"\"");
+    const w=s.texts.reduce((n,x)=>n+words(x),0);
+    if(s.act&&w>45)warns[first].push("This slide's text is "+w+" words alongside an activity. Around 35 words fits; students may need to scroll");
+    if(!s.act&&w>110)warns[first].push("This slide's text is "+w+" words. Around 90 words fits; students may need to scroll");
+    if(s.act&&["MC","MA"].includes(s.act.t)){const r=s.act.r,n=words(g(r,"Text"))+[...LETTERS].reduce((k,L)=>k+words(g(r,"Option "+L)),0);
+      if(n>(w?90:120))warns[recs.indexOf(r)].push("The question and options are "+n+" words. Shorter options fit the slide better");}
+  });
+  return {errs,warns};
+}
+function cpEl(action,x,y,w,h){return Object.assign({x,y,width:w,height:h},clone(TPL.cpWrap),{action});}
+function cpText(html,title){return {library:"H5P.AdvancedText 1.1",metadata:{contentType:"Text",license:"U",title:(title||"Text").slice(0,60)},params:{text:html},subContentId:uuid()};}
+function buildSlides(recs,title,opts){
+  let usesTF=false;
+  const slides=groupSlides(recs).map(s=>{
+    const els=[cpEl(cpText("<h2>"+xesc(s.title)+"</h2>",s.title),2,2,96,11)];
+    const body=s.texts.join("||");
+    let act=null;
+    if(s.act){const r=s.act.r,t=s.act.t;
+      if(t==="MC"||t==="MA"){act=unwrapQ(h5pMC(asQuizRow(Object.assign({},r,{type:t})),"",opts));if(g(r,"Title"))act.metadata.title=g(r,"Title").slice(0,60);}
+      else if(t==="TF"){usesTF=true;act=unwrapQ(h5pTF(asQuizRow(r),"",opts));}
+      else act=bookDrag(r);}
+    if(body&&act){els.push(cpEl(cpText(fmt(body),s.title),2,13,96,14));els.push(cpEl(act,2,28,96,70));}
+    else if(body)els.push(cpEl(cpText(fmt(body),s.title),2,14,96,84));
+    else if(act)els.push(cpEl(act,2,14,96,84));
+    return {elements:els,slideBackgroundSelector:{},keywords:[{main:s.title.slice(0,60)}]};
+  });
+  const top=clone(TPL.cpTop);
+  top.presentation=Object.assign({slides},top.presentation,{keywordListEnabled:!!opts.menu});
+  const content={presentation:top.presentation,override:top.override,l10n:top.l10n};
+  const deps=clone(TPL.cpDeps);if(usesTF&&!deps.some(d=>d.machineName==="H5P.TrueFalse"))deps.splice(deps.length-1,0,{machineName:"H5P.TrueFalse",majorVersion:1,minorVersion:8});
+  const h5pjson={title,language:"en",mainLibrary:"H5P.CoursePresentation",embedTypes:TPL.cpEmbed,license:"U",defaultLanguage:"en",preloadedDependencies:deps};
+  return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify(content)]],slides:slides.length};
+}
+function refreshSlides(t){
+  const recs=t.recs,{errs,warns}=checkSlides(recs),pv=$("preview");
+  const S=groupSlides(recs);let qs=0,dr=0;
+  S.forEach((s,k)=>{
+    const box=el("div","q chapter");box.appendChild(el("div","meta","Slide "+(k+1)+" · rows "+s.rows.map(i=>i+2).join(", ")));
+    box.appendChild(el("div","stem",s.title));
+    if(s.texts.length){const d=el("div");d.innerHTML=fmt(s.texts.join("||"));box.appendChild(d);}
+    if(s.act){const r=s.act.r,ty=s.act.t;
+      if(ty==="DRAG"){dr++;const d=el("div","stem");d.innerHTML=xesc(g(r,"Text")).replace(/\|\|/g,"<br><br>").replace(/\*([^*]+)\*/g,"<u><strong>$1</strong></u>");box.appendChild(d);}
+      else{qs++;box.appendChild(el("div","stem",ty+": "+g(r,"Text")));const c=g(r,"Correct").toUpperCase().replace(/\s/g,"").split(",");
+        if(ty==="TF")["True","False"].forEach(v=>box.appendChild(el("div","opt"+(c[0]===v.toUpperCase()?" correct":""),v)));
+        else [...LETTERS].forEach(L=>{const o=g(r,"Option "+L);if(!o)return;const d=el("div","opt"+(c.includes(L)?" correct":""),L+". "+o);if(g(r,"Feedback "+L))d.appendChild(el("div","fb",g(r,"Feedback "+L)));box.appendChild(d);});
+        if(g(r,"General feedback")){const d=el("div","gfb");d.appendChild(el("strong",null,"General feedback: "));d.appendChild(document.createTextNode(g(r,"General feedback")));box.appendChild(d);}}}
+    const e=[],w=[];s.rows.forEach(i=>{errs[i].forEach(x=>e.push("Row "+(i+2)+": "+x));warns[i].forEach(x=>w.push("Row "+(i+2)+": "+x));});
+    if(e.length)box.classList.add("err");errBox(box,e);errBox(box,w,"warn");pv.appendChild(box);
+  });
+  const nErr=errs.filter(e=>e.length).length;
+  $("summary").textContent="Course Presentation: "+S.length+" slide"+(S.length===1?"":"s")+" · "+qs+" question"+(qs===1?"":"s")+" · "+dr+" drag the words";
+  if(finishStatus(nErr,recs.length,t.dups,"All "+recs.length+" rows look fine."))$("slidesBtn").disabled=false;
+}
+
+/* ---------- Branching Scenario ---------- */
+const BTYPES=["INFO","DECISION","END"];
+const bt=r=>{let t=g(r,"Type").toUpperCase();if(t==="CONTENT"||t==="TEXT")t="INFO";if(t==="QUESTION"||t==="BRANCH")t="DECISION";if(t==="ENDING")t="END";return t;};
+const isEnd=v=>/^end$/i.test(String(v).trim());
+function choicesOf(r){return [...LETTERS.slice(0,4)].map(L=>({L,text:g(r,"Choice "+L),go:g(r,"Go to "+L),fb:g(r,"Feedback "+L),score:g(r,"Score "+L)})).filter(c=>c.text);}
+function analyseBranch(recs){
+  const ids=recs.map(r=>g(r,"ID"));const idx={};ids.forEach((id,i)=>{if(id&&!(id.toUpperCase() in idx))idx[id.toUpperCase()]=i;});
+  const errs=recs.map(()=>[]),warns=recs.map(()=>[]);const edges=recs.map(()=>[]);const missing=new Set();
+  const target=(v,i,label)=>{if(!v){errs[i].push(label+" is empty");return null;}if(isEnd(v))return -1;const j=idx[v.toUpperCase()];if(j===undefined){missing.add(v);errs[i].push(label+" points to '"+v+"', which is not in the box yet");return null;}return j;};
+  recs.forEach((r,i)=>{
+    const t=bt(r),id=g(r,"ID");
+    if(!id)errs[i].push("ID is empty");else if(idx[id.toUpperCase()]!==i)errs[i].push("ID '"+id+"' is used more than once");
+    if(!BTYPES.includes(t)){errs[i].push("Type '"+g(r,"Type")+"' must be INFO, DECISION or END");return;}
+    if(t==="INFO"){if(!g(r,"Text"))errs[i].push("Text is empty");const j=target(g(r,"Next"),i,"Next");if(j!==null)edges[i].push(j);}
+    if(t==="DECISION"){if(!g(r,"Text"))errs[i].push("The question (Text) is empty");const cs=choicesOf(r);if(cs.length<2)errs[i].push("A decision needs at least two choices");
+      cs.forEach(c=>{const j=target(c.go,i,"Go to "+c.L);if(j!==null)edges[i].push(j);if(c.score&&!isNum(c.score))errs[i].push("Score "+c.L+" must be a number");});}
+    if(t==="END"){if(g(r,"Next")&&!isEnd(g(r,"Next")))warns[i].push("END rows finish the scenario, so Next is ignored");if(g(r,"Score")&&!isNum(g(r,"Score")))errs[i].push("Score must be a number");}
+  });
+  // reachability and path-to-end
+  const n=recs.length,reach=new Array(n).fill(false),stack=n?[0]:[];
+  while(stack.length){const k=stack.pop();if(reach[k])continue;reach[k]=true;edges[k].forEach(j=>{if(j>=0&&!reach[j])stack.push(j);});}
+  const ends=new Array(n).fill(false);let changed=true;
+  recs.forEach((r,i)=>{if(bt(r)==="END"||edges[i].includes(-1))ends[i]=true;});
+  while(changed){changed=false;for(let i=0;i<n;i++){if(!ends[i]&&edges[i].some(j=>j>=0&&ends[j])){ends[i]=true;changed=true;}}}
+  recs.forEach((r,i)=>{if(!reach[i]&&!missing.size)warns[i].push("Nothing leads to this node, so students will never see it");if(reach[i]&&!ends[i]&&!errs[i].length&&!missing.size)errs[i].push("Every route from here loops without reaching an END");});
+  // design summary
+  const incoming=new Array(n).fill(0).map(()=>new Set());recs.forEach((r,i)=>edges[i].forEach(j=>{if(j>=0)incoming[j].add(i);}));
+  const decisions=recs.map((r,i)=>i).filter(i=>bt(recs[i])==="DECISION");
+  const linear=decisions.filter(i=>new Set(edges[i]).size<=1),genuine=decisions.filter(i=>new Set(edges[i]).size>1);
+  const withFb=decisions.filter(i=>choicesOf(recs[i]).some(c=>c.fb));
+  const rejoin=recs.map((r,i)=>i).filter(i=>incoming[i].size>1);
+  const endings=recs.filter(r=>bt(r)==="END").length+(edges.some(e=>e.includes(-1))?1:0);
+  // longest simple path (bounded)
+  let longest=0;const dfs=(k,d,seen)=>{longest=Math.max(longest,d);if(d>200)return;edges[k].forEach(j=>{if(j>=0&&!seen.has(j)){seen.add(j);dfs(j,d+1,seen);seen.delete(j);}});};
+  if(n&&n<=120)dfs(0,1,new Set([0]));
+  return {errs,warns,edges,idx,missing:[...missing],design:{nodes:n,decisions:decisions.length,genuine:genuine.length,linear:linear.map(i=>g(recs[i],"ID")),withFb:withFb.length,rejoin:rejoin.map(i=>g(recs[i],"ID")),endings,longest}};
+}
+function bsNode(type,nextId,feedback){
+  const node={contentBehaviour:"useBehavioural",feedback:feedback||{subtitle:"",title:""},forceContentFinished:"useBehaviourGlobals",proceedButtonText:"Continue",showContentTitle:false,type};
+  if(nextId!==undefined)node.nextContentId=nextId;return node;
+}
+function buildBranch(recs,title,description,opts){
+  const A=analyseBranch(recs);const map=v=>isEnd(v)?-1:A.idx[String(v).trim().toUpperCase()];
+  const content=recs.map(r=>{
+    const t=bt(r),head=g(r,"Title")?"<h3>"+xesc(g(r,"Title"))+"</h3>":"";
+    if(t==="DECISION"){
+      const alts=choicesOf(r).map(c=>{const fb={title:"",subtitle:""};if(c.fb){const m=c.fb.match(/^(.{1,110}?[.!?])\s+(.+)$/);if(m){fb.title=m[1];fb.subtitle=m[2];}else fb.title=c.fb;}if(c.score&&opts.scoring==="dynamic-score")fb.endScreenScore=Number(c.score);return {feedback:fb,nextContentId:map(c.go),text:c.text};});
+      return bsNode({library:"H5P.BranchingQuestion 1.0",metadata:{contentType:"Branching Question",license:"U",title:(g(r,"Title")||g(r,"ID")).slice(0,60)},params:{branchingQuestion:{question:head+fmt(g(r,"Text")),alternatives:alts}},subContentId:uuid()});
+    }
+    const text={library:"H5P.AdvancedText 1.1",metadata:{contentType:"Text",license:"U",title:(g(r,"Title")||g(r,"ID")).slice(0,60)},params:{text:head+fmt(g(r,"Text"))},subContentId:uuid()};
+    if(t==="END"){const fb={title:g(r,"Title")||"End of scenario",subtitle:""};if(opts.scoring==="static-end-score")fb.endScreenScore=Number(g(r,"Score")||0);return bsNode(text,-1,fb);}
+    return bsNode(text,map(g(r,"Next")));
+  });
+  const top=clone(TPL.bsTop);
+  top.startScreen={startScreenTitle:title,startScreenSubtitle:description||""};
+  top.scoringOptionGroup={scoringOption:opts.scoring,includeInteractionsScores:true};
+  top.behaviour=Object.assign(top.behaviour||{},{enableBackwardsNavigation:opts.back});
+  if(top.endScreens&&top.endScreens[0]){top.endScreens[0].endScreenTitle="Scenario complete";top.endScreens[0].endScreenSubtitle="Review the feedback at each decision point. The quality of your reasoning matters more than any single choice.";}
+  const bs=Object.assign(top,{content});
+  const h5pjson={title,language:"en",mainLibrary:"H5P.BranchingScenario",embedTypes:TPL.bsEmbed,license:"U",defaultLanguage:"en",preloadedDependencies:clone(TPL.bsDeps)};
+  return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify({branchingScenario:bs})]],A};
+}
+
+/* UI */
+const $=id=>document.getElementById(id);
+let current=null;
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
+
+function refresh(){
+  const st=$("status"),pv=$("preview"),sum=$("summary"),dl=$("dlBtn");current=null;dl.disabled=true;$("h5pBtn").disabled=true;$("bookBtn").disabled=true;$("slidesBtn").disabled=true;$("branchBtn").disabled=true;$("design").innerHTML="";$("h5pNote").textContent="";pv.innerHTML="";
+  const text=$("csv").value;
+  if(!text.trim()){st.hidden=true;pv.textContent="Nothing to preview yet.";sum.textContent="Paste a CSV to see a summary.";return;}
+  const t=toRecords(parseCSV(text));
+  if(t.err){st.hidden=false;st.className="status bad";st.textContent=t.err;sum.textContent="";return;}
+  if(t.mode==="book"&&t.recs.some(r=>lt(r)==="SLIDE"))t.mode="slides";
+  $("dlQuiz").hidden=t.mode!=="quiz";$("dlBook").hidden=t.mode!=="book";$("dlSlides").hidden=t.mode!=="slides";$("dlBranch").hidden=t.mode!=="branch";
+  if(t.mode==="book"){refreshBook(t);return;}
+  if(t.mode==="slides"){refreshSlides(t);return;}
+  if(t.mode==="branch"){refreshBranch(t);return;}
+  const recs=t.recs;const {errs,poolErrs}=check(recs);
+  const nErr=errs.filter(e=>e.length).length+poolErrs.length;
+  recs.forEach((r,i)=>{
+    const tp=typeOf(r),box=el("div","q"+(errs[i].length?" err":""));
+    if(tp==="CASE"){box.classList.add("case");box.appendChild(el("div","meta","Row "+(i+2)+" · case text (no marks)"+(g(r,"Type").toUpperCase()!=="CASE"?" · detected automatically":"")));
+      box.appendChild(el("div","stem",caseText(r)));if(errs[i].length){const d=el("div","errs");errs[i].forEach(e=>d.appendChild(el("div",null,"\u26a0 "+e)));box.appendChild(d);}pv.appendChild(box);return;}
+    box.appendChild(el("div","meta","Row "+(i+2)+" · "+(tp||"?")+" · "+(g(r,"Points")||"1")+" pt"+(g(r,"Pool")?" · pool: "+g(r,"Pool"):"")));
+    box.appendChild(el("div","stem",g(r,"Question")||"(no question text)"));
+    const correct=g(r,"Correct").toUpperCase().replace(/\s/g,"").split(",");
+    if(tp==="TF"){["True","False"].forEach(v=>{const o=el("div","opt"+(correct[0]===v.toUpperCase()?" correct":""),v);box.appendChild(o);});}
+    else [...LETTERS].forEach(L=>{const ot=g(r,"Option "+L);if(!ot)return;
+      const o=el("div","opt"+((tp==="RATING"||correct.includes(L))?" correct":""),L+". "+ot);
+      const fb=g(r,"Feedback "+L);if(fb)o.appendChild(el("div","fb",fb));box.appendChild(o);});
+    if(["SA","NUM"].includes(tp))box.appendChild(el("div","opt correct","Accepted: "+g(r,"Correct")+(tp==="NUM"&&g(r,"Tolerance")?" (± "+g(r,"Tolerance")+")":"")));
+    [["Correct feedback","Correct feedback"],["Incorrect feedback","Incorrect feedback"],["General feedback","General feedback"]].forEach(([k,lab])=>{if(g(r,k)){const d=el("div","gfb");d.appendChild(el("strong",null,lab+": "));d.appendChild(document.createTextNode(g(r,k)));box.appendChild(d);}});
+    if(errs[i].length){const d=el("div","errs");errs[i].forEach(e=>d.appendChild(el("div",null,"⚠ "+e)));box.appendChild(d);}
+    pv.appendChild(box);
+  });
+  st.hidden=false;
+  if(nErr){st.className="status bad";st.textContent=[nErr+" problem"+(nErr>1?"s":"")+" to fix before download."].concat(poolErrs,["Ask the agent to correct those rows, or edit them in the box. The check reruns as you type."]).join(" ");sum.textContent="";return;}
+  if(!$("title").value.trim()){st.className="status bad";st.textContent="All "+recs.length+" rows look fine. Add a quiz title to enable download.";return;}
+  const b=build(recs,$("title").value.trim(),$("desc").value.trim());current=b;
+  st.className="status ok";st.textContent="All "+recs.length+" rows look fine."+(t.dups?" "+t.dups+" repeated row"+(t.dups>1?"s were":" was")+" removed (the agent's reply was probably pasted twice).":"");
+  sum.textContent="Questions each student sees: "+b.seen+(b.cases?" · Case texts: "+b.cases:"")+" · Total points: "+b.total+(b.notes.length?" · Pools: "+b.notes.join("; "):"");
+  dl.disabled=false;
+  const hb=buildH5P(recs,$("title").value.trim(),h5pOpts());
+  const notes=[];if(hb.skipped.length)notes.push("Not included in H5P (no matching H5P question type): "+hb.skipped.join(", ")+".");
+  if(hb.pools)notes.push("Pools are ignored in H5P; every question is included.");
+  notes.push(hb.count+" question"+(hb.count===1?"":"s")+" will go into the H5P set.");
+  $("h5pNote").textContent=notes.join(" ");$("h5pBtn").disabled=hb.count===0;
+}
+$("csv").addEventListener("input",refresh);$("title").addEventListener("input",refresh);$("desc").addEventListener("input",refresh);
+$("openBtn").onclick=()=>$("file").click();
+$("file").onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{$("csv").value=rd.result;if(!$("title").value)$("title").value=f.name.replace(/\.csv$/i,"");refresh();};rd.readAsText(f,"utf-8");};
+$("clearBtn").onclick=()=>{$("csv").value="";refresh();};
+
+function errBox(box,list,cls){if(!list.length)return;const d=el("div",cls||"errs");list.forEach(e=>d.appendChild(el("div",null,(cls==="warn"?"\u26a0 ":"\u26d4 ")+e)));box.appendChild(d);}
+function finishStatus(nErr,rows,dups,okMsg,badMsg){
+  const st=$("status");st.hidden=false;
+  if(nErr&&badMsg){st.className="status bad";st.textContent=badMsg;return false;}
+  if(nErr){st.className="status bad";st.textContent=nErr+" row"+(nErr>1?"s need":" needs")+" fixing before download. Ask the agent to correct them, or edit them in the box.";return false;}
+  if(!$("title").value.trim()){st.className="status bad";st.textContent="All "+rows+" rows look fine. Add a title to enable download.";return false;}
+  st.className="status ok";st.textContent=okMsg+(dups?" "+dups+" repeated row"+(dups>1?"s were":" was")+" removed.":"");return true;
+}
+function refreshBook(t){
+  const recs=t.recs,errs=checkBook(recs),pv=$("preview");
+  let ch=0,tx=0,qs=0,dr=0;
+  recs.forEach((r,i)=>{
+    const ty=lt(r);const box=el("div","q"+(errs[i].length?" err":"")+(ty==="CHAPTER"?" chapter":""));
+    box.appendChild(el("div","meta","Row "+(i+2)+" \u00b7 "+ty+(g(r,"Title")&&ty!=="CHAPTER"?" \u00b7 "+g(r,"Title"):"")));
+    if(ty==="CHAPTER"){ch++;box.appendChild(el("div","stem","Chapter: "+g(r,"Title")));if(g(r,"Text")){const d=el("div");d.innerHTML=fmt(g(r,"Text"));box.appendChild(d);}}
+    else if(ty==="TEXT"){tx++;const d=el("div");d.innerHTML=fmt(g(r,"Text"));box.appendChild(d);}
+    else if(ty==="DRAG"){dr++;const d=el("div","stem");d.innerHTML=xesc(g(r,"Text")).replace(/\|\|/g,"<br><br>").replace(/\*([^*]+)\*/g,"<u><strong>$1</strong></u>");box.appendChild(d);}
+    else if(["MC","MA","TF"].includes(ty)){qs++;box.appendChild(el("div","stem",g(r,"Text")));const c=g(r,"Correct").toUpperCase().replace(/\s/g,"").split(",");
+      if(ty==="TF")["True","False"].forEach(v=>box.appendChild(el("div","opt"+(c[0]===v.toUpperCase()?" correct":""),v)));
+      else [...LETTERS].forEach(L=>{const o=g(r,"Option "+L);if(!o)return;const d=el("div","opt"+(c.includes(L)?" correct":""),L+". "+o);if(g(r,"Feedback "+L))d.appendChild(el("div","fb",g(r,"Feedback "+L)));box.appendChild(d);});
+      if(g(r,"General feedback")){const d=el("div","gfb");d.appendChild(el("strong",null,"General feedback: "));d.appendChild(document.createTextNode(g(r,"General feedback")));box.appendChild(d);}}
+    errBox(box,errs[i]);pv.appendChild(box);
+  });
+  const nErr=errs.filter(e=>e.length).length;
+  $("summary").textContent="Interactive Book: "+ch+" chapter"+(ch===1?"":"s")+" \u00b7 "+tx+" text block"+(tx===1?"":"s")+" \u00b7 "+qs+" question"+(qs===1?"":"s")+" \u00b7 "+dr+" drag the words";
+  if(finishStatus(nErr,recs.length,t.dups,"All "+recs.length+" rows look fine."))$("bookBtn").disabled=false;
+}
+function refreshBranch(t){
+  const recs=t.recs,A=analyseBranch(recs),pv=$("preview"),D=A.design;
+  const incoming=recs.map(()=>new Set());recs.forEach((r,i)=>A.edges[i].forEach(j=>{if(j>=0)incoming[j].add(g(r,"ID"));}));
+  const nameOf=v=>isEnd(v)?"END":v;
+  recs.forEach((r,i)=>{
+    const ty=bt(r);const box=el("div","q"+(A.errs[i].length?" err":"")+(ty==="END"?" chapter":ty==="INFO"?"":" case"));
+    box.appendChild(el("div","meta",g(r,"ID")+" \u00b7 "+ty+(i===0?" \u00b7 start":"")+(incoming[i].size>1?" \u00b7 rejoin point (from "+[...incoming[i]].join(", ")+")":"")));
+    if(g(r,"Title"))box.appendChild(el("div","stem",g(r,"Title")));
+    const d=el("div");d.innerHTML=fmt(g(r,"Text"));box.appendChild(d);
+    if(ty==="INFO")box.appendChild(el("div","arrow","\u2192 "+nameOf(g(r,"Next"))));
+    if(ty==="DECISION")choicesOf(r).forEach(c=>{const o=el("div","opt",c.L+". "+c.text+"  \u2192 "+nameOf(c.go)+(c.score?"  ("+c.score+" pts)":""));if(c.fb)o.appendChild(el("div","fb",c.fb));box.appendChild(o);});
+    if(ty==="END")box.appendChild(el("div","arrow","Ending"+(g(r,"Score")?" \u00b7 score "+g(r,"Score"):"")));
+    errBox(box,A.errs[i]);errBox(box,A.warns[i],"warn");pv.appendChild(box);
+  });
+  const hints=[];
+  if(D.decisions&&!D.genuine)hints.push("No decision sends students to different places. This works like a quiz with extra steps; give the tempting wrong choices their own consequence nodes.");
+  else if(D.linear.length)hints.push("Choices at "+D.linear.join(", ")+" all lead to the same node, so these work like quiz questions. Fine for checks; for key decisions, give tempting wrong choices a consequence node before rejoining.");
+  if(D.genuine&&!D.rejoin.length)hints.push("Branches never rejoin. That is fine for short cases, but long cases grow quickly; consider rejoining after each consequence.");
+  if(D.decisions&&D.withFb<D.decisions)hints.push((D.decisions-D.withFb)+" decision"+(D.decisions-D.withFb>1?"s have":" has")+" no choice feedback. Feedback is shown straight after a choice, before the next node.");
+  $("design").innerHTML="";const dz=$("design");dz.appendChild(el("strong",null,"Design check"));
+  const ul=el("ul");[
+    D.nodes+" node"+(D.nodes===1?"":"s")+", "+D.decisions+" decision"+(D.decisions===1?"":"s")+" ("+D.genuine+" genuine branch"+(D.genuine===1?"":"es")+")",
+    "Rejoin points: "+(D.rejoin.length?D.rejoin.join(", "):"none"),
+    "Endings: "+D.endings+" \u00b7 longest route: "+D.longest+" nodes"
+  ].concat(hints).forEach(x=>ul.appendChild(el("li",null,x)));dz.appendChild(ul);
+  const nErr=A.errs.filter(e=>e.length).length;
+  $("summary").textContent="Branching Scenario: "+D.nodes+" node"+(D.nodes===1?"":"s")+" \u00b7 "+D.decisions+" decision"+(D.decisions===1?"":"s")+" \u00b7 "+D.endings+" ending"+(D.endings===1?"":"s");
+  const mMsg=A.missing.length?"Some rows link to nodes that are not in the box yet: "+A.missing.join(", ")+". If the agent exported in batches, paste the next batch below this one; these messages clear once every node is in. If there are no more batches, ask the agent to add those nodes."+(nErr>A.errs.filter(e=>e.length&&e.every(x=>x.includes("not in the box yet"))).length?" Other rows also need fixing; see the messages in the preview.":""):"";
+  if(finishStatus(nErr,recs.length,t.dups,"All "+recs.length+" nodes connect properly.",mMsg))$("branchBtn").disabled=false;
+}
+function saveH5P(files,title){const blob=zip(files);const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(title.replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,50)||"h5p")+".h5p";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
+$("bookBtn").onclick=()=>{const title=$("title").value.trim();const t=toRecords(parseCSV($("csv").value));saveH5P(buildBook(t.recs,title,$("desc").value.trim(),{solutions:$("bookSolutions").checked,shuffle:true,pass:50}).files,title);};
+$("branchBtn").onclick=()=>{const title=$("title").value.trim();const t=toRecords(parseCSV($("csv").value));saveH5P(buildBranch(t.recs,title,$("desc").value.trim(),{scoring:$("bsScoring").value,back:$("bsBack").checked}).files,title);};
+$("slidesBtn").onclick=()=>{const title=$("title").value.trim();const t=toRecords(parseCSV($("csv").value));saveH5P(buildSlides(t.recs,title,{solutions:$("slidesSolutions").checked,shuffle:true,pass:50,menu:$("slidesMenu").checked}).files,title);};
+["bsScoring","bsBack","bookSolutions","slidesSolutions","slidesMenu"].forEach(id=>$(id).addEventListener("input",refresh));
+
+$("h5pBtn").onclick=()=>{
+  const title=$("title").value.trim();const recs=toRecords(parseCSV($("csv").value)).recs||[];
+  const hb=buildH5P(recs,title,h5pOpts());const blob=zip(hb.files);const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download=(title.replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,50)||"quiz")+".h5p";
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+};
+["h5pSolutions","h5pShuffle","h5pPass"].forEach(id=>$(id).addEventListener("input",refresh));
+$("dlBtn").onclick=()=>{
+  const title=$("title").value.trim();const b=build(parseCSV($("csv").value).length?toRecords(parseCSV($("csv").value)).recs:[],title,$("desc").value.trim());
+  const blob=zip(b.files);const a=document.createElement("a");
+  const d=new Date(),stamp=d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0");
+  a.href=URL.createObjectURL(blob);a.download=(title.replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,50)||"quiz")+"_QTI_"+stamp+".zip";
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+};
+</script>
+</body>
+</html>
