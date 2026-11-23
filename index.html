@@ -49,12 +49,42 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .errs{color:var(--bad);font-size:13px;margin-top:6px}
 ol{margin:6px 0 0 20px;padding:0}
 code{background:var(--chip);padding:1px 5px;border-radius:4px}
+.imgh{font-size:1rem;margin:16px 0 4px}
+.imgline{font-size:13px;margin-top:6px}
+.imgline.ok{color:var(--ok)}
+.imgline.miss{color:var(--bad)}
+.thumb{display:block;max-height:110px;max-width:220px;margin-top:6px;border:1px solid var(--line);border-radius:6px}
+.thumb.crop{cursor:zoom-in}
+.cropov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.croppanel{background:var(--card);color:var(--ink);border-radius:10px;padding:16px;max-width:min(1100px,96vw);max-height:96vh;overflow:auto}
+.cropwrap{position:relative;display:inline-block;margin:10px 0;cursor:crosshair;touch-action:none;user-select:none}
+.cropwrap img{display:block;max-width:min(1060px,90vw);max-height:70vh}
+.slidegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;max-height:55vh;overflow:auto;margin:10px 0}
+.slidepick{padding:4px;border:2px solid var(--line);border-radius:8px;background:var(--card);display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted);font-size:12px}
+.slidepick img{width:100%;aspect-ratio:16/9;object-fit:contain;background:#fff}
+.slidepick.on{border-color:#f59e0b}
+.croppanel input[type=text]{margin-bottom:6px}
+.cropbox{position:absolute;border:2px solid #f59e0b;background:rgba(245,158,11,.15);pointer-events:none}
+.warn{color:var(--muted);font-size:13px;margin-top:6px}
+.q table{border-collapse:collapse;margin:6px 0;font-size:14px}
+.q th,.q td{border:1px solid var(--line);padding:4px 8px;text-align:left;vertical-align:top}
+.q th{background:var(--chip)}
+.q hr{border:0;border-top:1px solid var(--line);margin:10px 0}
+.q h3{font-size:1rem;margin:8px 0 4px}
+.acc{border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:6px 0}
+.acc summary{font-weight:600;cursor:pointer}
+.card2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0}
+.card2>div{background:var(--chip);border-radius:8px;padding:8px 10px}
+.card2 .lab{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.swatch{display:inline-flex;align-items:center;gap:8px;font-weight:400}
+.swatch input[type=color]{width:44px;height:30px;padding:0;border:1px solid var(--line);border-radius:6px;background:none}
 </style>
 </head>
 <body>
 <main>
 <h1>Quiz and H5P Converter</h1>
-<p class="muted">Turns the CSV from the course agents into a Canvas quiz (.zip), or an H5P Question Set, Interactive Book, Course Presentation or Branching Scenario (.h5p), with all feedback included. The page works out which from the header row. Everything happens in this page; nothing is uploaded anywhere.</p>
+<p class="muted">Turns the CSV from the course agents into a Canvas quiz (.zip), or an H5P Question Set, Interactive Book, Course Presentation or Branching Scenario (.h5p), with all feedback included. The page works out which from the header row. Images named in the CSV can be added too. Everything happens in this page; nothing is uploaded anywhere.</p>
+<p class="muted small">Version 12 · 19 November 2026</p>
 
 <div class="card">
 <h2>1. Title and description</h2>
@@ -67,12 +97,23 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 <div class="card">
 <h2>2. Paste the CSV</h2>
 <p>Paste the whole CSV block from the agent, including the header row, or open a saved .csv file. Quiz CSVs start <code>Pool,Pick,Type</code>. Interactive Book and Course Presentation CSVs start <code>Type,Title,Text</code> (CHAPTER rows make a book; SLIDE rows make a presentation). Branching Scenario CSVs start <code>ID,Type,Title,Text,Next</code>. If the agent exported in batches, paste each batch below the last; repeated header rows are ignored.</p>
+<p class="muted small"><strong>Formatting inside Text:</strong> <code>||</code> starts a new paragraph, <code>- </code> starts a bullet, <code>**bold**</code>, <code>## </code> starts a heading, and <code>---</code> adds a separator line. Interactive Books also take ACCORDION rows (collapsible panels), CARDS rows (Dialog Cards that students turn over) and TABLE rows (rows split by <code>||</code>, cells by <code>|</code>, first row as headings).</p>
 <textarea id="csv" spellcheck="false" placeholder="Pool,Pick,Type,Points,Question,Correct,..."></textarea>
 <div class="row">
 <button id="openBtn" type="button">Open a .csv file</button>
 <input id="file" type="file" accept=".csv,text/csv" hidden>
 <button id="clearBtn" type="button">Clear</button>
 </div>
+<h3 class="imgh">Images (optional)</h3>
+<p class="muted small">If the CSV has an Image column, add those image files here (PNG, JPG, GIF or SVG). They are matched by file name and placed in the Interactive Book, Course Presentation or Branching Scenario. Quizzes ignore images.</p>
+<p class="muted small"><strong>Slides from a lecture:</strong> when the CSV names a slide, such as <code>Pain_mechanisms.pdf#12</code>, add that lecture saved as a PDF here and the page turns slide 12 into an image. Once a PDF is added, you can also choose slides yourself: each page, text block or card in the preview gets a <strong>Choose a slide</strong> button. Click any slide image to crop it to the figure. Save PowerPoint files as PDF first, keeping the same name. The PDF stays on your computer.</p>
+<p class="muted small">Only use images you have the right to share: check figures taken from textbooks or other publishers before they go into FLO, and never use images of real patients without consent.</p>
+<div class="row">
+<button id="imgBtn" type="button">Add images or lecture PDFs</button>
+<input id="imgs" type="file" accept="image/png,image/jpeg,image/gif,image/svg+xml,application/pdf,.png,.jpg,.jpeg,.gif,.svg,.pdf" multiple hidden>
+<button id="imgClear" type="button">Remove images and PDFs</button>
+</div>
+<p id="imgList" class="muted small">No images added.</p>
 <div id="status" class="status" hidden></div>
 </div>
 
@@ -98,6 +139,11 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 <div id="dlBook" hidden><div class="dl-opt">
 <h3>H5P Interactive Book</h3>
 <label class="chk"><input type="checkbox" id="bookSolutions" checked> Let students reveal the correct answer</label>
+<label class="chk swatch">Book colour <input type="color" id="bookColour" value="#1768c4"> <span id="bookColourHex" class="muted">#1768c4</span> <button id="bookColourReset" type="button" style="padding:4px 10px">Reset</button></label>
+<p class="muted small" style="margin-top:2px">Used for the book's header, buttons and progress bar.</p>
+<label class="chk">Cover image (optional)</label>
+<div class="row" style="margin-top:2px"><button id="coverBtn" type="button">Choose cover image</button><input id="coverFile" type="file" accept="image/png,image/jpeg,image/gif,.png,.jpg,.jpeg,.gif" hidden><button id="coverClear" type="button">Remove</button></div>
+<p id="coverName" class="muted small">No cover image. The cover shows the title and description only.</p>
 <button id="bookBtn" class="primary" type="button" disabled>Download Interactive Book (.h5p)</button>
 <p class="muted small"><strong>Then in H5P:</strong> <strong>Add content</strong> &gt; <strong>Upload</strong>, then preview every chapter before adding it to Canvas.</p>
 </div></div>
@@ -270,7 +316,7 @@ function zip(files){
   const enc=new TextEncoder(),parts=[],cd=[];let off=0;
   const d=new Date(),dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF,dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
   for(const [name,text] of files){
-    const nb=enc.encode(name),data=enc.encode(text),crc=crc32(data);
+    const nb=enc.encode(name),data=typeof text==="string"?enc.encode(text):text,crc=crc32(data);
     const lh=new DataView(new ArrayBuffer(30));
     lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(8,0,true);
     lh.setUint16(10,dt,true);lh.setUint16(12,dd,true);lh.setUint32(14,crc,true);lh.setUint32(18,data.length,true);lh.setUint32(22,data.length,true);
@@ -340,17 +386,40 @@ function h5pOpts(){let pass=parseInt($("h5pPass").value,10);if(isNaN(pass))pass=
 const TPL={"bookTop": {"showCoverPage": true, "behaviour": {"defaultTableOfContents": true, "progressIndicators": true, "progressAuto": true, "displaySummary": true, "baseColor": "#1768c4", "enableRetry": true}, "read": "Read", "displayTOC": "Display table of contents", "hideTOC": "Hide table of contents", "nextPage": "Next page", "previousPage": "Previous page", "chapterCompleted": "Page completed!", "partCompleted": "@pages page(s) completed", "incompleteChapter": "Incomplete page", "navigateToTop": "Navigate to the top", "markAsFinished": "I have finished this page", "fullscreen": "Fullscreen", "exitFullscreen": "Exit fullscreen", "bookProgressSubtext": "@count of @total chapters", "interactionsProgressSubtext": "@count of @total interactions", "submitReport": "Submit Report", "restartLabel": "Restart", "summaryHeader": "Summary", "allInteractions": "All interactions", "unansweredInteractions": "Unanswered interactions", "scoreText": "Score", "leftOutOfTotalCompleted": "@left of @total interactions completed", "noInteractions": "No interactions", "score": "Score", "summaryAndSubmit": "Summary &amp; submit", "noChapterInteractionBoldText": "You have not interacted with any pages.", "noChapterInteractionText": "You have to interact with at least one page before you can see the summary.", "yourAnswersAreSubmittedForReview": "Your answers are submitted for review.", "bookProgress": "Book progress", "interactionsProgress": "Interactions progress", "a11y": {"progress": "Page @page of @total.", "menu": "Toggle navigation menu"}, "totalScoreLabel": "Total score", "page": "Page", "next": "Next", "previous": "Previous"}, "bookDeps": [{"machineName": "jQuery.ui", "majorVersion": 1, "minorVersion": 10}, {"machineName": "H5P.Components", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Image", "majorVersion": 1, "minorVersion": 1}, {"machineName": "H5P.AdvancedText", "majorVersion": 1, "minorVersion": 1}, {"machineName": "FontAwesome", "majorVersion": 4, "minorVersion": 5}, {"machineName": "H5P.FontIcons", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Transition", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.JoubelUI", "majorVersion": 1, "minorVersion": 3}, {"machineName": "H5P.Question", "majorVersion": 1, "minorVersion": 5}, {"machineName": "H5P.MultiChoice", "majorVersion": 1, "minorVersion": 16}, {"machineName": "H5P.SingleChoiceSet", "majorVersion": 1, "minorVersion": 11}, {"machineName": "H5P.Column", "majorVersion": 1, "minorVersion": 22}, {"machineName": "H5P.DragText", "majorVersion": 1, "minorVersion": 10}, {"machineName": "H5P.InteractiveBook", "majorVersion": 1, "minorVersion": 15}], "dragParams": {"taskDescription": "<p>Drag the correct category label to complete each statement about the reasoning role of these early findings.</p>", "checkAnswer": "Check", "tryAgain": "Retry", "showSolution": "Show Solution", "behaviour": {"enableRetry": true, "enableSolutionsButton": true, "instantFeedback": false, "enableCheckButton": true}, "textField": "P1 is a 2\u20133/10 cervical ache that spikes to 9/10 on aggravation. This large gap between resting and aggravated pain is most relevant to *symptom severity and irritability* reasoning \u2014 it suggests the presentation may not tolerate a full provocative O/E without modification.\n\nP2 emerges after P1 is aggravated. The fact that P2 appears only after P1 is provoked is most relevant to *symptom relationship* reasoning \u2014 it suggests P1 and P2 may share a source or that P2 is a secondary response.\n\nThe absence of pins and needles or numbness is most relevant to *neurological symptom screening* \u2014 a negative finding that reduces (but does not eliminate) the likelihood of a significant neurogenic component at this stage.\n\nThe intensity alone (2\u20133/10 resting) is *not yet enough to interpret* in isolation \u2014 it must be read alongside behaviour, aggravating factors and the 9/10 spike before forming a severity or irritability judgement.", "overallFeedback": [{"from": 0, "to": 49, "feedback": "Review the case carefully and try again."}, {"from": 50, "to": 79, "feedback": "Good effort \u2014 check the answers you missed."}, {"from": 80, "to": 100, "feedback": "Excellent work!"}], "dropZoneIndex": "Drop Zone @index.", "empty": "Drop Zone @index is empty.", "contains": "Drop Zone @index contains draggable @draggable.", "tipLabel": "Show tip", "correctText": "Correct!", "incorrectText": "Incorrect!", "resetDropTitle": "Reset drop", "resetDropDescription": "Are you sure you want to reset this drop zone?", "grabbed": "Draggable is grabbed.", "cancelledDragging": "Cancelled dragging.", "correctAnswer": "Correct answer:", "feedbackHeader": "Feedback", "scoreBarLabel": "You got :num out of :total points", "a11yCheck": "Check the answers.", "a11yShowSolution": "Show the solution.", "a11yRetry": "Retry the task.", "media": {"disableImageZooming": false}, "submitAnswer": "Submit", "ariaDraggableIndex": "@index of @count draggables."}, "bsTop": {"startScreen": {"startScreenTitle": "Which Cervical Problem Space Are You In?", "startScreenSubtitle": "Week 11 \u2014 Neurogenic \u00b7 TOS \u00b7 Red Flags \u00b7 Motor Control | Clinical Reasoning Under Uncertainty"}, "endScreens": [{"contentId": -1, "endScreenScore": 0, "endScreenTitle": "Activity complete", "endScreenSubtitle": "Review the feedback at each decision point \u2014 the quality of your reasoning matters more than selecting the correct option."}], "behaviour": {"enableBackwardsNavigation": true, "forceContentFinished": false, "randomizeBranchingQuestions": false}, "l10n": {"startScreenButtonText": "Start the course", "endScreenButtonText": "Restart the course", "backButtonText": "Back", "disableProceedButtonText": "Require to complete the current module", "replayButtonText": "Replay the video", "scoreText": "Your score:", "fullscreenAria": "Fullscreen"}, "scoringOptionGroup": {"scoringOption": "no-score", "includeInteractionsScores": true}}, "bsDeps": [{"machineName": "H5P.AdvancedText", "majorVersion": 1, "minorVersion": 1}, {"machineName": "FontAwesome", "majorVersion": 4, "minorVersion": 5}, {"machineName": "H5P.FontIcons", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Transition", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.JoubelUI", "majorVersion": 1, "minorVersion": 3}, {"machineName": "jQuery.ui", "majorVersion": 1, "minorVersion": 10}, {"machineName": "H5P.Components", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.CoursePresentation", "majorVersion": 1, "minorVersion": 27}, {"machineName": "H5P.BranchingQuestion", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.BranchingScenario", "majorVersion": 1, "minorVersion": 11}], "bookEmbed": ["div"], "bsEmbed": ["div"]};
 Object.assign(TPL,{"cpTop": {"l10n": {"slide": "Slide", "score": "Score", "yourScore": "Your score", "maxScore": "Max score", "total": "Total", "totalScore": "Total Score", "solutionModeTitle": "Exit solution mode", "solutionModeText": "Solution Mode", "summaryMultipleTaskText": "Multiple tasks", "summary": "Summary", "slides": "Slides", "showSolutions": "Show solutions", "retry": "Retry", "exportAnswers": "Export text", "hideKeywords": "Hide sidebar navigation menu", "showKeywords": "Show sidebar navigation menu", "fullscreen": "Fullscreen", "exitFullscreen": "Exit fullscreen", "prevSlide": "Previous slide", "nextSlide": "Next slide", "currentSlide": "Current slide", "lastSlide": "Last slide", "scoreMessage": "You achieved:", "shareFacebook": "Share on Facebook", "shareTwitter": "Share on Twitter", "shareGoogle": "Share on Google+", "solutionsButtonTitle": "Show comments", "printTitle": "Print", "printIngress": "How would you like to print this presentation?", "printAllSlides": "Print all slides", "printCurrentSlide": "Print current slide", "noTitle": "No title", "accessibilitySlideNavigationExplanation": "Use left and right arrow to change slide in that direction whenever canvas is selected.", "accessibilityCanvasLabel": "Presentation canvas. Use left and right arrow to move between slides.", "accessibilityProgressBarLabel": "Choose slide to display", "containsNotCompleted": "@slideName contains not completed interaction", "containsCompleted": "@slideName contains completed interaction", "slideCount": "Slide @index of @total", "containsOnlyCorrect": "@slideName only has correct answers", "containsIncorrectAnswers": "@slideName has incorrect answers", "resultHeader": "Results", "amountCorrect": "@value / @max correct", "amountCorrectAria": "@value out of @max correct", "shareResult": "Share Result", "accessibilityTotalScore": "You got @score of @maxScore points in total", "accessibilityEnteredFullscreen": "Entered fullscreen", "accessibilityExitedFullscreen": "Exited fullscreen", "confirmDialogHeader": "Submit your answers", "confirmDialogText": "This will submit your results, do you want to continue?", "confirmDialogConfirmText": "Submit and see results", "slideshowNavigationLabel": "Slideshow navigation", "confirmDialogConfirmLabel": "Confirm", "confirmDialogCancelLabel": "Cancel"}, "override": {"activeSurface": false, "enablePrintButton": false, "hideSummarySlide": false, "social": {"facebookShare": {"quote": "I scored @score out of @maxScore on a task at @currentpageurl.", "url": "@currentpageurl"}, "googleShareUrl": "@currentpageurl", "showFacebookShare": false, "showGoogleShare": false, "showTwitterShare": false, "twitterShare": {"hashtags": "", "statement": "I scored @score out of @maxScore.", "url": "@currentpageurl"}}, "summarySlideRetryButton": true, "summarySlideSolutionButton": true}, "presentation": {"globalBackgroundSelector": {"fillGlobalBackground": ""}, "keywordListAlwaysShow": false, "keywordListAutoHide": false, "keywordListEnabled": false, "keywordListOpacity": 90}}, "cpWrap": {"alwaysDisplayComments": false, "backgroundOpacity": 0, "buttonSize": "big", "displayAsButton": false, "goToSlideType": "specified", "invisible": false, "solution": ""}, "cpDeps": [{"machineName": "H5P.AdvancedText", "majorVersion": 1, "minorVersion": 1}, {"machineName": "jQuery.ui", "majorVersion": 1, "minorVersion": 10}, {"machineName": "H5P.Components", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Image", "majorVersion": 1, "minorVersion": 1}, {"machineName": "FontAwesome", "majorVersion": 4, "minorVersion": 5}, {"machineName": "H5P.FontIcons", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.Transition", "majorVersion": 1, "minorVersion": 0}, {"machineName": "H5P.JoubelUI", "majorVersion": 1, "minorVersion": 3}, {"machineName": "H5P.Question", "majorVersion": 1, "minorVersion": 5}, {"machineName": "H5P.DragText", "majorVersion": 1, "minorVersion": 10}, {"machineName": "H5P.MultiChoice", "majorVersion": 1, "minorVersion": 16}, {"machineName": "H5P.CoursePresentation", "majorVersion": 1, "minorVersion": 27}], "cpEmbed": ["div"]});
 const clone=o=>JSON.parse(JSON.stringify(o));
-/* Light formatting: "||" or a line break starts a new paragraph, "- " starts a bullet, **bold** */
+/* Light formatting: "||" or a line break starts a new paragraph, "- " starts a bullet, **bold**,
+   "## " a heading and "---" a separator line (v10) */
+const splitParts=t=>String(t).split(/\|\||\r?\n/).map(s=>s.trim()).filter(Boolean);
+const inl=s=>xesc(s).replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>");
 function fmt(t){
-  const parts=String(t).split(/\|\||\r?\n/).map(s=>s.trim()).filter(Boolean);
   let out="",inList=false;
-  parts.forEach(p=>{
-    const bullet=/^[-•]\s+/.test(p);const body=xesc(p.replace(/^[-•]\s+/,"")).replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>");
+  const closeList=()=>{if(inList){out+="</ul>";inList=false;}};
+  splitParts(t).forEach(p=>{
+    if(/^-{3,}$/.test(p)){closeList();out+="<hr>";return;}
+    if(/^#{2,3}\s+/.test(p)){closeList();out+="<h3>"+inl(p.replace(/^#{2,3}\s+/,""))+"</h3>";return;}
+    const bullet=/^[-•]\s+/.test(p);const body=inl(p.replace(/^[-•]\s+/,""));
     if(bullet){if(!inList){out+="<ul>";inList=true;}out+="<li>"+body+"</li>";}
-    else{if(inList){out+="</ul>";inList=false;}out+="<p>"+body+"</p>";}
+    else{closeList();out+="<p>"+body+"</p>";}
   });
-  if(inList)out+="</ul>";
+  closeList();
   return out;
+}
+/* TABLE rows (v10): rows split by "||", cells by "|"; the first row is the header. Outer pipes and "---" rows are ignored */
+const isRuleRow=p=>/^[\s:|-]+$/.test(p)&&p.includes("-");
+function tableRows(t){
+  const str=String(t);
+  if(!/\|\||\r?\n/.test(str)){/* v12: one line with a markdown divider row (---) tells us the number of columns */
+    const isDiv=x=>/^:?-{3,}:?$/.test(x.trim());
+    if(/\|\s+\|/.test(str)){const rs=str.trim().split(/\|\s+\|/).map(x=>x.replace(/^\|/,"").replace(/\|$/,"").split("|").map(y=>y.trim()));if(rs.some(r=>r.length>1&&r.every(isDiv)))return rs.filter(r=>!r.every(isDiv));}
+    const c=str.trim().replace(/^\|/,"").replace(/\|$/,"").split("|").map(x=>x.trim());let st=-1,k=0;
+    for(let i=0;i<c.length;i++){if(/^:?-{3,}:?$/.test(c[i])){if(st<0)st=i;k++;}else if(st>=0)break;}
+    if(st>0&&k===st){const body=c.slice(0,st).concat(c.slice(st+k)),rows=[];for(let i=0;i<body.length;i+=k)rows.push(body.slice(i,i+k));return rows;}
+  }
+  return str.split(/\|\||\r?\n/).map(x=>x.trim()).filter(x=>x&&!isRuleRow(x)).map(x=>x.replace(/^\|/,"").replace(/\|$/,"").split("|").map(c=>c.trim()));}
+function tableHtml(t){
+  const rows=tableRows(t);if(!rows.length)return "";
+  const n=Math.max(...rows.map(r=>r.length));const pad=r=>r.concat(Array(n-r.length).fill(""));
+  return "<table class=\"h5p-table\"><thead><tr>"+pad(rows[0]).map(c=>"<th>"+inl(c)+"</th>").join("")+"</tr></thead><tbody>"+
+    rows.slice(1).map(r=>"<tr>"+pad(r).map(c=>"<td>"+inl(c)+"</td>").join("")+"</tr>").join("")+"</tbody></table>";
 }
 function detectMode(head){
   if(head.includes("id")&&head.includes("next"))return "branch";
@@ -358,9 +427,180 @@ function detectMode(head){
   return "quiz";
 }
 
+
+/* ---------- Images (v9): files added on the page, matched by the CSV's Image column ---------- */
+const IMAGES={};
+let COVER=null; /* v10: Interactive Book cover image */
+const imgKey=n=>String(n||"").trim().replace(/^.*[\\/]/,"").toLowerCase();
+const stripExt=n=>n.replace(/\.[a-z0-9]+$/,"");
+/* ---------- v11: slides from a lecture PDF, named in the Image column as "Lecture.pdf#12" ---------- */
+const PDFS={};      /* base name (lower case, no extension) -> {name, base, bytes, doc} */
+const RENDERED={};  /* "base#n" -> image object, or "pending", "range:N" or "error:..." */
+let pdfjsReady=null;
+function loadPdfJs(){
+  if(pdfjsReady)return pdfjsReady;
+  const srcs=[["https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js","https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"],
+              ["https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js","https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js"]];
+  pdfjsReady=(async()=>{
+    for(const [lib,worker] of srcs){
+      try{if(!window.pdfjsLib)await new Promise((res,rej)=>{const s=document.createElement("script");s.src=lib;s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+        if(window.pdfjsLib){window.pdfjsLib.GlobalWorkerOptions.workerSrc=worker;return window.pdfjsLib;}}catch(e){}
+    }
+    throw new Error("The PDF reader could not load. Check your internet connection, or export the slides as images instead");
+  })();
+  pdfjsReady.catch(()=>{pdfjsReady=null;});
+  return pdfjsReady;
+}
+const normBase=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]+/g,"");
+/* "Lecture.pdf#12", "Lecture.pptx#12", "Lecture.pdf slide 12" or just "slide 12" / "#12" */
+function pdfRef(v){
+  const m=String(v||"").trim().match(/^(?:(.+?)\.(?:pdf|pptx?|key))?\s*(?:#|,|\bslide\b\s*:?|\bpage\b\s*:?)\s*(\d+)\s*$/i);
+  return m?{base:(m[1]||"").replace(/^.*[\\/]/,"").trim().toLowerCase(),n:parseInt(m[2],10)}:null;
+}
+function findPdf(base){
+  if(PDFS[base])return {pdf:PDFS[base],exact:true};
+  const nb=normBase(base);for(const k in PDFS){if(normBase(k)===nb)return {pdf:PDFS[k],exact:true};}
+  const all=Object.values(PDFS);if(all.length===1)return {pdf:all[0],exact:!base};
+  return null;
+}
+function slideState(pr){const f=findPdf(pr.base);if(!f)return {state:"nopdf"};const k=f.pdf.base+"#"+pr.n;return {state:RENDERED[k],key:k,pdf:f.pdf,exact:f.exact};}
+function slideImage(pr){
+  const s=slideState(pr);if(s.state==="nopdf")return null;
+  if(s.state&&typeof s.state==="object")return s.state;
+  if(!s.state)renderSlide(s.pdf,pr.n,s.key);
+  return null;
+}
+async function renderSlide(p,n,k){
+  RENDERED[k]="pending";
+  try{
+    const lib=await loadPdfJs();
+    if(!p.doc)p.doc=lib.getDocument({data:p.bytes.slice()}).promise;
+    const doc=await p.doc;
+    if(n<1||n>doc.numPages){RENDERED[k]="range:"+doc.numPages;refresh();return;}
+    const page=await doc.getPage(n);const v1=page.getViewport({scale:1});
+    const vp=page.getViewport({scale:Math.min(3,1600/v1.width)});
+    const c=document.createElement("canvas");c.width=Math.round(vp.width);c.height=Math.round(vp.height);
+    const ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);
+    await page.render({canvasContext:ctx,viewport:vp}).promise;
+    const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",0.88));
+    const bytes=new Uint8Array(await blob.arrayBuffer());
+    const fname=(p.base.replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"")||"slides")+"_slide"+n+".jpg";
+    RENDERED[k]={key:fname,name:fname,bytes,mime:"image/jpeg",w:c.width,h:c.height,slide:true,rk:k};RENDERED[k].orig=RENDERED[k];
+  }catch(e){RENDERED[k]="error:"+(e&&e.message?e.message:e);}
+  refresh();
+}
+/* v12: let staff choose a slide for a row; the choice is written back into the CSV */
+function setRowImage(idx,value,alt){
+  const rows=parseCSV($("csv").value);const t=toRecords(rows);if(t.err||!t.recs[idx])return;
+  const head=rows[0].map(h=>h.trim()),low=head.map(h=>h.toLowerCase());
+  if(!low.includes("image")){head.push("Image");low.push("image");}
+  if(!low.includes("alt text")){head.push("Alt text");low.push("alt text");}
+  const r=t.recs[idx];r["image"]=value;r["alt text"]=alt;
+  const q=v=>'"'+String(v||"").replace(/"/g,'""')+'"';
+  $("csv").value=[head.map(q).join(",")].concat(t.recs.map(o=>low.map(h=>q(o[h])).join(","))).join("\n");
+  refresh();
+}
+const PAGETHUMBS={};
+async function pageThumb(p,n){const k=p.base+"#"+n;if(PAGETHUMBS[k])return PAGETHUMBS[k];
+  const lib=await loadPdfJs();if(!p.doc)p.doc=lib.getDocument({data:p.bytes.slice()}).promise;const doc=await p.doc;const page=await doc.getPage(n);
+  const v1=page.getViewport({scale:1});const vp=page.getViewport({scale:240/v1.width});const c=document.createElement("canvas");c.width=Math.round(vp.width);c.height=Math.round(vp.height);
+  const ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);await page.render({canvasContext:ctx,viewport:vp}).promise;
+  return PAGETHUMBS[k]=c.toDataURL("image/jpeg",0.8);}
+async function openSlidePicker(idx,r){
+  const pdfs=Object.values(PDFS);if(!pdfs.length)return;
+  const cur=pdfRef(imgName(r));let pdf=(cur&&findPdf(cur.base)?findPdf(cur.base).pdf:pdfs[0]),chosen=cur?cur.n:0;
+  const ov=el("div","cropov"),panel=el("div","croppanel");panel.style.width="min(1000px,94vw)";ov.appendChild(panel);
+  panel.appendChild(el("strong",null,"Choose a slide for row "+(idx+2)+(g(r,"Title")?" ("+g(r,"Title")+")":"")));
+  let sel=null;if(pdfs.length>1){sel=document.createElement("select");pdfs.forEach((p,i)=>{const o=document.createElement("option");o.value=i;o.textContent=p.name;if(p===pdf)o.selected=true;sel.appendChild(o);});const l=el("label","chk","Lecture ");l.appendChild(sel);panel.appendChild(l);}
+  const grid=el("div","slidegrid");panel.appendChild(grid);
+  const altL=el("label",null,"Alt text: what the figure shows and why it matters (required)");const alt=document.createElement("input");alt.type="text";alt.value=g(r,"Alt text");panel.appendChild(altL);panel.appendChild(alt);
+  const msg=el("p","errs");panel.appendChild(msg);
+  const row=el("div","row");const use=el("button","primary","Use this slide"),none=el("button",null,"No image"),cancel=el("button",null,"Cancel");[use,none,cancel].forEach(b=>{b.type="button";row.appendChild(b);});panel.appendChild(row);
+  const close=()=>ov.remove();cancel.onclick=close;ov.onclick=e=>{if(e.target===ov)close();};
+  none.onclick=()=>{close();setRowImage(idx,"","");};
+  use.onclick=()=>{if(!chosen){msg.textContent="Click a slide first.";return;}if(!alt.value.trim()){msg.textContent="Add alt text so students using a screen reader know what the figure shows.";alt.focus();return;}close();setRowImage(idx,pdf.name+"#"+chosen,alt.value.trim());};
+  async function fill(){grid.innerHTML="";msg.textContent="Loading slides\u2026";
+    try{const lib=await loadPdfJs();if(!pdf.doc)pdf.doc=lib.getDocument({data:pdf.bytes.slice()}).promise;const doc=await pdf.doc;msg.textContent="";
+      for(let n=1;n<=doc.numPages;n++){const b=el("button","slidepick"+(n===chosen?" on":""));b.type="button";const im=document.createElement("img");im.alt="Slide "+n;b.appendChild(im);b.appendChild(el("span",null,String(n)));
+        b.onclick=()=>{chosen=n;grid.querySelectorAll(".slidepick").forEach(x=>x.classList.remove("on"));b.classList.add("on");};grid.appendChild(b);
+        pageThumb(pdf,n).then(u=>{im.src=u;}).catch(()=>{});}
+    }catch(e){msg.textContent=e&&e.message?e.message:String(e);}}
+  if(sel)sel.onchange=()=>{pdf=pdfs[+sel.value];chosen=0;fill();};
+  document.body.appendChild(ov);fill();
+}
+function addSlideButton(box,idx,r){if(!Object.keys(PDFS).length)return;
+  const b=el("button","small",pdfRef(imgName(r))?"Change slide":"Choose a slide");b.type="button";b.style.marginTop="6px";b.style.padding="4px 10px";b.onclick=()=>openSlidePicker(idx,r);box.appendChild(b);}
+const slidesPending=()=>Object.values(RENDERED).filter(v=>v==="pending").length;
+function findImage(name){const pr=pdfRef(name);if(pr)return slideImage(pr);const k=imgKey(name);if(!k)return null;if(IMAGES[k])return IMAGES[k];const s=stripExt(k);for(const key in IMAGES){if(stripExt(key)===s)return IMAGES[key];}return null;}
+const imgName=r=>g(r,"Image");
+const imgAlt=r=>g(r,"Alt text")||g(r,"Alt");
+function mediaCollector(){
+  const used=new Map();
+  return {
+    add(img){if(!used.has(img.key)){let base=img.key.replace(/[^a-z0-9._-]+/g,"-");let path="images/"+base,n=1;const paths=[...used.values()].map(u=>u.path);while(paths.includes(path)){n++;path="images/"+n+"-"+base;}used.set(img.key,{path,img});}return used.get(img.key).path;},
+    files(){return [...used.values()].map(u=>["content/"+u.path,u.img.bytes]);},
+    count(){return used.size;}
+  };
+}
+function h5pImage(img,alt,media){
+  const p={decorative:false,contentName:"Image",alt:alt||img.name,title:alt||"",expandImage:"Expand Image",minimizeImage:"Minimize Image",
+    file:{path:media.add(img),mime:img.mime,copyright:{license:"U"},width:img.w,height:img.h}};
+  return {library:"H5P.Image 1.1",metadata:{contentType:"Image",license:"U",title:(alt||img.name).slice(0,60)},params:p,subContentId:uuid()};
+}
+/* Fit an image inside a Course Presentation box (x,y,w,h in % of a 16:9 slide) without distorting it */
+function fitBox(img,x,y,w,h){const a=(img.w||4)/(img.h||3);let bw=w,bh=h;if((w*16)/(h*9)>a){bw=a*h*9/16;}else{bh=w*16/(9*a);}return [x+(w-bw)/2,y+(h-bh)/2,bw,bh];}
+/* Preview line and warnings for a row's image */
+function imgNotes(r){const n=imgName(r);if(!n)return {line:null,warns:[]};
+  const pr=pdfRef(n);
+  if(pr){const img=findImage(n),s=slideState(pr),w=[];let txt;
+    const lec=pr.base?"'"+n.replace(/\s*(#|,|slide|page).*$/i,"")+"'":"the lecture";
+    if(s.state==="nopdf"){txt="slide "+pr.n+" of "+lec+" (PDF not added yet)";w.push("Slide "+pr.n+" needs "+lec+" saved as a PDF. Add it under Images, or the activity is built without it");}
+    else if(img){txt="slide "+pr.n+" of "+s.pdf.name+" (ready, "+img.w+"\u00d7"+img.h+")";if(!s.exact)w.push("No PDF called "+lec+" was added, so slide "+pr.n+" is taken from "+s.pdf.name+", the only PDF added. Check it is the right lecture");}
+    else if(typeof s.state==="string"&&s.state.startsWith("range:")){txt="slide "+pr.n+" of "+s.pdf.name+" (not found)";w.push(s.pdf.name+" has only "+s.state.slice(6)+" pages, so slide "+pr.n+" is left out");}
+    else if(typeof s.state==="string"&&s.state.startsWith("error:")){txt="slide "+pr.n+" of "+s.pdf.name+" (could not be read)";w.push(s.state.slice(6));}
+    else txt="slide "+pr.n+" of "+s.pdf.name+" (preparing\u2026)";
+    if(!imgAlt(r))w.push("Slide "+pr.n+" has no alt text. Add a short description in the Alt text column");
+    return {line:{text:"\ud83d\uddbc "+txt+(imgAlt(r)?" \u00b7 alt: "+imgAlt(r):""),ok:!!img},warns:w};}
+  const img=findImage(n),w=[];
+  if(!img)w.push("Image '"+n+"' has not been added yet. Add it under Images, or the activity is built without it");
+  if(!imgAlt(r))w.push("Image '"+n+"' has no alt text. Add a short description in the Alt text column");
+  return {line:{text:"🖼 "+n+(img?" (added, "+img.w+"×"+img.h+")":" (not added yet)")+(imgAlt(r)?" · alt: "+imgAlt(r):""),ok:!!img},warns:w};}
+const THUMBS=new WeakMap();
+/* v11: crop a slide to the figure that matters */
+function openCrop(k){
+  const cur=RENDERED[k];if(!cur||typeof cur!=="object")return;const orig=cur.orig||cur;
+  const ov=el("div","cropov");const panel=el("div","croppanel");ov.appendChild(panel);
+  panel.appendChild(el("strong",null,"Drag a box around the part of the slide to keep"));
+  const wrap=el("div","cropwrap");const im=document.createElement("img");im.src=thumbUrl(orig);im.alt="";im.draggable=false;wrap.appendChild(im);
+  const box=el("div","cropbox");box.hidden=true;wrap.appendChild(box);panel.appendChild(wrap);
+  let st=null,rect=null;
+  const pos=e=>{const b=im.getBoundingClientRect();return [Math.max(0,Math.min(b.width,e.clientX-b.left)),Math.max(0,Math.min(b.height,e.clientY-b.top))];};
+  const draw=()=>{if(!rect)return;box.hidden=false;Object.assign(box.style,{left:rect[0]+"px",top:rect[1]+"px",width:rect[2]+"px",height:rect[3]+"px"});};
+  wrap.onpointerdown=e=>{e.preventDefault();wrap.setPointerCapture(e.pointerId);st=pos(e);rect=[st[0],st[1],0,0];draw();};
+  wrap.onpointermove=e=>{if(!st)return;const p=pos(e);rect=[Math.min(st[0],p[0]),Math.min(st[1],p[1]),Math.abs(p[0]-st[0]),Math.abs(p[1]-st[1])];draw();};
+  wrap.onpointerup=()=>{st=null;};
+  const row=el("div","row");const use=el("button","primary","Use this crop");const whole=el("button",null,"Use the whole slide");const cancel=el("button",null,"Cancel");
+  [use,whole,cancel].forEach(b=>{b.type="button";row.appendChild(b);});panel.appendChild(row);
+  const close=()=>ov.remove();cancel.onclick=close;ov.onclick=e=>{if(e.target===ov)close();};
+  whole.onclick=()=>{RENDERED[k]=orig;close();refresh();};
+  use.onclick=async()=>{
+    if(!rect||rect[2]<8||rect[3]<8){alert("Drag a box around the part to keep first.");return;}
+    const sc=orig.w/im.getBoundingClientRect().width;const x=Math.round(rect[0]*sc),y=Math.round(rect[1]*sc),w=Math.round(rect[2]*sc),h=Math.round(rect[3]*sc);
+    const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(im,x,y,w,h,0,0,w,h);
+    const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",0.9));
+    RENDERED[k]=Object.assign({},orig,{bytes:new Uint8Array(await blob.arrayBuffer()),w,h,cropped:true,orig});close();refresh();};
+  document.body.appendChild(ov);
+}
+function thumbUrl(img){if(!THUMBS.has(img))THUMBS.set(img,URL.createObjectURL(new Blob([img.bytes],{type:img.mime})));return THUMBS.get(img);}
+function addImgLine(box,r){const n=imgNotes(r);if(n.line){box.appendChild(el("div","imgline "+(n.line.ok?"ok":"miss"),n.line.text));
+  const img=n.line.ok?findImage(imgName(r)):null;if(img){const t=document.createElement("img");t.src=thumbUrl(img);t.alt="";t.className="thumb";box.appendChild(t);
+    if(img.slide){t.classList.add("crop");t.title="Click to crop";t.onclick=()=>openCrop(img.rk);box.appendChild(el("div","muted small",(img.cropped?"Cropped. ":"")+"Click the slide to crop it to just the figure."));}}}
+  return n.warns;}
+
 /* ---------- Interactive Book ---------- */
-const LTYPES=["CHAPTER","TEXT","MC","MA","TF","DRAG"];
-const lt=r=>{let t=g(r,"Type").toUpperCase();if(t==="MR")t="MA";if(t==="DRAGTEXT"||t==="DRAG THE WORDS")t="DRAG";return t;};
+const LTYPES=["CHAPTER","TEXT","TABLE","ACCORDION","CARDS","MC","MA","TF","DRAG"];
+const lt=r=>{let t=g(r,"Type").toUpperCase().trim();if(t==="MR")t="MA";if(t==="DRAGTEXT"||t==="DRAG THE WORDS")t="DRAG";if(["CARD","DIALOGCARDS","DIALOG CARDS","DIALOG CARD","FLIPCARD","FLIP CARD"].includes(t))t="CARDS";if(t==="PANEL")t="ACCORDION";return t;};
+const wordCount=s=>(String(s).replace(/\|\|/g," ").match(/[A-Za-z0-9\u00C0-\u024F'\u2019-]+/g)||[]).length;
 function checkBook(recs){
   return recs.map((r,i)=>{
     const e=[],t=lt(r);
@@ -368,6 +608,9 @@ function checkBook(recs){
     if(!LTYPES.includes(t)){e.push("Type '"+g(r,"Type")+"' must be one of "+LTYPES.join(", "));return e;}
     if(t==="CHAPTER"&&!g(r,"Title"))e.push("A CHAPTER row needs a Title");
     if(t==="TEXT"&&!g(r,"Text"))e.push("Text is empty");
+    if(t==="ACCORDION"){if(!g(r,"Title"))e.push("An ACCORDION row needs a Title (the panel heading students click)");if(!g(r,"Text"))e.push("An ACCORDION row needs Text (what the panel shows when opened)");}
+    if(t==="TABLE"){const tr=tableRows(g(r,"Text"));if(tr.length<2||Math.max(...tr.map(c=>c.length))<2)e.push("A TABLE row needs at least two rows (split by ||) and two cells (split by |) in Text");}
+    if(t==="CARDS"){if(!g(r,"Title"))e.push("A CARDS row needs a Title (the front of the card)");if(!g(r,"Text"))e.push("A CARDS row needs Text (the back of the card)");}
     if(["MC","MA","TF"].includes(t)){
       if(!g(r,"Text"))e.push("The question (Text) is empty");
       const opts=[...LETTERS].filter(L=>g(r,"Option "+L));const c=g(r,"Correct").toUpperCase().replace(/\s/g,"");
@@ -380,9 +623,36 @@ function checkBook(recs){
     return e;
   });
 }
+/* Design warnings for a book (v10): advice only, never blocks the download */
+function warnBook(recs){
+  const w=recs.map(()=>[]);let chapRow=-1,acts=[];
+  const closeChap=()=>{if(chapRow<0)return;const q=acts.filter(a=>["MC","MA","TF","DRAG"].includes(a));
+    if(q.length>=3&&q.every(a=>a==="MC"))w[chapRow].push("Every activity on this page is multiple choice. Mixing in a DRAG, TF or MA row keeps the page more engaging");};
+  recs.forEach((r,i)=>{const t=lt(r);
+    if(t==="CHAPTER"){closeChap();chapRow=i;acts=[];}else acts.push(t);
+    if(["TEXT","CHAPTER","ACCORDION"].includes(t)){const n=wordCount(g(r,"Text"));
+      if(n>150)w[i].push("This text is "+n+" words. Students read best in blocks of about 60 to 100 words; consider splitting it, or moving detail into ACCORDION rows")}
+    if((t==="ACCORDION"||t==="TABLE")&&imgName(r))w[i].push("Images cannot go on "+(t==="TABLE"?"a TABLE row":"an accordion panel")+", so this one is left out. Put it on the TEXT row before");
+    if(t==="TABLE"){const n=new Set(tableRows(g(r,"Text")).map(c=>c.length));if(n.size>1)w[i].push("The table rows have different numbers of cells. Missing cells are left blank; check each row has the same number of | dividers");}
+  });
+  closeChap();return w;
+}
 function asQuizRow(r){const o=Object.assign({},r);o["question"]=g(r,"Text");return o;}
 function colItem(content){return {content,useSeparator:"auto"};}
 function bookText(title,text){return {library:"H5P.AdvancedText 1.1",metadata:{contentType:"Text",license:"U",title:title||"Text"},params:{text:(title?"<h3>"+xesc(title)+"</h3>":"")+fmt(text)},subContentId:uuid()};}
+function advText(html,title){return {library:"H5P.AdvancedText 1.1",metadata:{contentType:"Text",license:"U",title:(title||"Text").slice(0,60)},params:{text:html},subContentId:uuid()};}
+function bookTable(r){return {library:"H5P.Table 1.2",metadata:{contentType:"Table",license:"U",title:(g(r,"Title")||"Table").slice(0,60)},params:{text:tableHtml(g(r,"Text"))},subContentId:uuid()};}
+function bookAccordion(){return {library:"H5P.Accordion 1.0",metadata:{contentType:"Accordion",license:"U",title:"Accordion"},params:{panels:[],hTag:"h3"},subContentId:uuid()};}
+function accPanel(r){return {title:xesc(g(r,"Title")),content:advText(fmt(g(r,"Text")),g(r,"Title"))};}
+const cardHtml=t=>splitParts(t).map(p=>"<p style=\"text-align: center;\">"+(/^[-•]\s+/.test(p)?"\u2022 ":"")+inl(p.replace(/^[-•]\s+/,"").replace(/^#{2,3}\s+/,""))+"</p>").join("");
+function bookCards(){return {library:"H5P.Dialogcards 1.9",metadata:{contentType:"Dialog Cards",license:"U",title:"Dialog Cards"},
+  params:{mode:"normal",description:"<p>Read the front and decide your answer, then turn the card to check.</p>",dialogs:[],
+    behaviour:{enableRetry:true,disableBackwardsNavigation:false,scaleTextNotCard:false,randomCards:false,maxProficiency:5,quickProgression:false},
+    answer:"Turn",next:"Next",prev:"Previous",retry:"Retry",correctAnswer:"I got it right!",incorrectAnswer:"I got it wrong",round:"Round @round",cardsLeft:"Cards left: @number",nextRound:"Proceed to round @round",startOver:"Start over",showSummary:"Next",summary:"Summary",summaryCardsRight:"Cards you got right:",summaryCardsWrong:"Cards you got wrong:",summaryCardsNotShown:"Cards in pool not shown:",summaryOverallScore:"Overall Score",summaryCardsCompleted:"Cards you have completed learning:",summaryCompletedRounds:"Completed rounds:",summaryAllDone:"Well done! You have mastered all @cards cards by getting them correct @max times!",progressText:"Card @card of @total",cardFrontLabel:"Card front",cardBackLabel:"Card back",tipButtonLabel:"Show tip",audioNotSupported:"Your browser does not support this audio",
+    confirmStartingOver:{header:"Start over?",body:"All progress will be lost. Are you sure you want to start over?",cancelLabel:"Cancel",confirmLabel:"Start over"}},subContentId:uuid()};}
+function card(r,media){const d={text:cardHtml(g(r,"Title")),answer:cardHtml(g(r,"Text")),tips:{front:"",back:""}};
+  const img=findImage(imgName(r));if(img){d.image={path:media.add(img),mime:img.mime,copyright:{license:"U"},width:img.w,height:img.h};d.imageAltText=imgAlt(r)||img.name;}
+  return d;}
 function bookDrag(r){
   const p=clone(TPL.dragParams);p.taskDescription=g(r,"Title")?"<p>"+xesc(g(r,"Title"))+"</p>":"<p>Drag the words into the correct places.</p>";
   p.textField=g(r,"Text").replace(/\|\|/g,"\n\n");
@@ -391,21 +661,35 @@ function bookDrag(r){
 }
 function unwrapQ(q){return {library:q.library,metadata:q.metadata,params:q.params,subContentId:q.subContentId};}
 function buildBook(recs,title,description,opts){
-  const chapters=[];let cur=null,usesTF=false;
+  opts=opts||{};
+  const chapters=[];let cur=null,usesTF=false,group=null;const media=mediaCollector();const flags={table:false,accordion:false,cards:false};
+  const pushImg=r=>{const img=findImage(imgName(r));if(img)cur.params.content.push(colItem(h5pImage(img,imgAlt(r),media)));};
   const newChap=t=>{cur={library:"H5P.Column 1.22",metadata:{contentType:"Page",license:"U",title:t},params:{content:[]},subContentId:uuid()};chapters.push(cur);};
   recs.forEach(r=>{
     const t=lt(r);
-    if(t==="CHAPTER"){newChap(g(r,"Title"));if(g(r,"Text"))cur.params.content.push(colItem(bookText("",g(r,"Text"))));return;}
+    if(group&&group.type!==t)group=null;
+    if(t==="CHAPTER"){group=null;newChap(g(r,"Title"));if(g(r,"Text"))cur.params.content.push(colItem(bookText("",g(r,"Text"))));pushImg(r);return;}
     if(!cur)newChap("Chapter 1");
-    if(t==="TEXT")cur.params.content.push(colItem(bookText(g(r,"Title"),g(r,"Text"))));
-    else if(t==="MC"||t==="MA"){const q=h5pMC(asQuizRow(Object.assign({},r,{type:t})),"",opts);if(g(r,"Title"))q.metadata.title=g(r,"Title").slice(0,60);cur.params.content.push(colItem(unwrapQ(q)));}
+    if(t==="TEXT"){cur.params.content.push(colItem(bookText(g(r,"Title"),g(r,"Text"))));pushImg(r);return;}
+    if(t==="TABLE"){flags.table=true;if(g(r,"Title"))cur.params.content.push(colItem(advText("<h3>"+xesc(g(r,"Title"))+"</h3>",g(r,"Title"))));cur.params.content.push(colItem(bookTable(r)));return;}
+    if(t==="ACCORDION"){flags.accordion=true;if(!group){group={type:t,obj:bookAccordion()};cur.params.content.push(colItem(group.obj));}group.obj.params.panels.push(accPanel(r));return;}
+    if(t==="CARDS"){flags.cards=true;if(!group){group={type:t,obj:bookCards()};cur.params.content.push(colItem(group.obj));}group.obj.params.dialogs.push(card(r,media));return;}
+    pushImg(r);
+    if(t==="MC"||t==="MA"){const q=h5pMC(asQuizRow(Object.assign({},r,{type:t})),"",opts);if(g(r,"Title"))q.metadata.title=g(r,"Title").slice(0,60);cur.params.content.push(colItem(unwrapQ(q)));}
     else if(t==="TF"){usesTF=true;const q=h5pTF(asQuizRow(r),"",opts);cur.params.content.push(colItem(unwrapQ(q)));}
     else if(t==="DRAG")cur.params.content.push(colItem(bookDrag(r)));
   });
-  const content=Object.assign(clone(TPL.bookTop),{showCoverPage:true,bookCover:{coverDescription:"<p style=\"text-align:center;\">"+xesc(description||title)+"</p>"},chapters});
+  const cover={coverDescription:"<p style=\"text-align: center;\">"+xesc(description||title)+"</p>"};
+  if(opts.cover)cover.coverMedium=h5pImage(opts.cover,opts.coverAlt||("Cover image: "+title),media);
+  const content=Object.assign(clone(TPL.bookTop),{showCoverPage:true,bookCover:cover,chapters});
+  if(/^#[0-9a-f]{6}$/i.test(opts.colour||""))content.behaviour.baseColor=opts.colour.toLowerCase();
   const deps=clone(TPL.bookDeps);if(usesTF)deps.push({machineName:"H5P.TrueFalse",majorVersion:1,minorVersion:8});
+  /* v10: added only when used. Versions are the ones H5P.Column 1.22 accepts */
+  if(flags.accordion)deps.push({machineName:"H5P.Accordion",majorVersion:1,minorVersion:0});
+  if(flags.cards)deps.push({machineName:"H5P.Dialogcards",majorVersion:1,minorVersion:9});
+  if(flags.table)deps.push({machineName:"H5P.Table",majorVersion:1,minorVersion:2});
   const h5pjson={title,language:"en",mainLibrary:"H5P.InteractiveBook",embedTypes:TPL.bookEmbed,license:"U",defaultLanguage:"en",preloadedDependencies:deps};
-  return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify(content)]],chapters:chapters.length};
+  return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify(content)]].concat(media.files()),chapters:chapters.length,images:media.count(),flags};
 }
 
 
@@ -415,13 +699,14 @@ const words=t=>String(t).replace(/\|\|/g," ").replace(/\*/g,"").split(/\s+/).fil
 /* Group rows into slides: a SLIDE row starts a slide; one activity per slide; extra items start a continued slide */
 function groupSlides(recs){
   const slides=[];let cur=null;
-  const start=(title,i,cont)=>{cur={title,texts:[],act:null,rows:[i],cont:!!cont};slides.push(cur);};
+  const start=(title,i,cont)=>{cur={title,texts:[],act:null,img:null,extraImgs:[],rows:[i],cont:!!cont};slides.push(cur);};
+  const takeImg=(r,i)=>{if(!imgName(r))return;if(!cur.img)cur.img={r,i};else cur.extraImgs.push(i);};
   recs.forEach((r,i)=>{
     const t=lt(r);
-    if(t==="SLIDE"){start(g(r,"Title"),i);if(g(r,"Text"))cur.texts.push(g(r,"Text"));return;}
+    if(t==="SLIDE"){start(g(r,"Title"),i);if(g(r,"Text"))cur.texts.push(g(r,"Text"));takeImg(r,i);return;}
     if(!cur)start("Slide 1",i);
-    if(t==="TEXT"){if(cur.act)start(cur.title+" (continued)",i,true);else if(cur.rows[cur.rows.length-1]!==i)cur.rows.push(i);cur.texts.push((g(r,"Title")?"**"+g(r,"Title")+"**||":"")+g(r,"Text"));return;}
-    if(ACTS.includes(t)){if(cur.act)start(cur.title+" (continued)",i,true);else if(cur.rows[cur.rows.length-1]!==i)cur.rows.push(i);cur.act={r,t};return;}
+    if(t==="TEXT"){if(cur.act)start(cur.title+" (continued)",i,true);else if(cur.rows[cur.rows.length-1]!==i)cur.rows.push(i);cur.texts.push((g(r,"Title")?"**"+g(r,"Title")+"**||":"")+g(r,"Text"));takeImg(r,i);return;}
+    if(ACTS.includes(t)){if(cur.act)start(cur.title+" (continued)",i,true);else if(cur.rows[cur.rows.length-1]!==i)cur.rows.push(i);cur.act={r,t};takeImg(r,i);return;}
     if(cur.rows[cur.rows.length-1]!==i)cur.rows.push(i);
   });
   return slides;
@@ -437,6 +722,8 @@ function checkSlides(recs){
   groupSlides(recs).forEach(s=>{
     const first=s.rows[0];
     if(s.cont)warns[first].push("A slide holds one activity, so this starts a new slide: \""+s.title+"\"");
+    if(s.img&&s.act)warns[s.img.i].push("This slide has an image and an activity, so the image and slide text go on their own slide, just before the activity");
+    s.extraImgs.forEach(i=>warns[i].push("A slide shows one image, so this image is left out. Give it its own SLIDE row"));
     const w=s.texts.reduce((n,x)=>n+words(x),0);
     if(s.act&&w>45)warns[first].push("This slide's text is "+w+" words alongside an activity. Around 35 words fits; students may need to scroll");
     if(!s.act&&w>110)warns[first].push("This slide's text is "+w+" words. Around 90 words fits; students may need to scroll");
@@ -448,8 +735,24 @@ function checkSlides(recs){
 function cpEl(action,x,y,w,h){return Object.assign({x,y,width:w,height:h},clone(TPL.cpWrap),{action});}
 function cpText(html,title){return {library:"H5P.AdvancedText 1.1",metadata:{contentType:"Text",license:"U",title:(title||"Text").slice(0,60)},params:{text:html},subContentId:uuid()};}
 function buildSlides(recs,title,opts){
-  let usesTF=false;
-  const slides=groupSlides(recs).map(s=>{
+  let usesTF=false;const media=mediaCollector();const out=[];
+  const head=t=>cpEl(cpText("<h2>"+xesc(t)+"</h2>",t),2,2,96,11);
+  const kw=t=>[{main:t.slice(0,60)}];
+  groupSlides(recs).forEach(s=>{
+    const img=s.img?findImage(imgName(s.img.r)):null;
+    if(img){
+      const body=s.texts.join("||"),els=[head(s.title)];
+      const im=h5pImage(img,imgAlt(s.img.r),media);
+      if(body){els.push(cpEl(cpText(fmt(body),s.title),2,14,52,84));const b=fitBox(img,56,14,42,84);els.push(cpEl(im,b[0],b[1],b[2],b[3]));}
+      else{const b=fitBox(img,2,14,96,84);els.push(cpEl(im,b[0],b[1],b[2],b[3]));}
+      out.push({elements:els,slideBackgroundSelector:{},keywords:kw(s.title)});
+      if(!s.act)return;
+      s={title:s.title,texts:[],act:s.act};
+    }
+    out.push(slideOf(s));
+  });
+  const slides=out;
+  function slideOf(s){
     const els=[cpEl(cpText("<h2>"+xesc(s.title)+"</h2>",s.title),2,2,96,11)];
     const body=s.texts.join("||");
     let act=null;
@@ -461,13 +764,13 @@ function buildSlides(recs,title,opts){
     else if(body)els.push(cpEl(cpText(fmt(body),s.title),2,14,96,84));
     else if(act)els.push(cpEl(act,2,14,96,84));
     return {elements:els,slideBackgroundSelector:{},keywords:[{main:s.title.slice(0,60)}]};
-  });
+  }
   const top=clone(TPL.cpTop);
   top.presentation=Object.assign({slides},top.presentation,{keywordListEnabled:!!opts.menu});
   const content={presentation:top.presentation,override:top.override,l10n:top.l10n};
   const deps=clone(TPL.cpDeps);if(usesTF&&!deps.some(d=>d.machineName==="H5P.TrueFalse"))deps.splice(deps.length-1,0,{machineName:"H5P.TrueFalse",majorVersion:1,minorVersion:8});
   const h5pjson={title,language:"en",mainLibrary:"H5P.CoursePresentation",embedTypes:TPL.cpEmbed,license:"U",defaultLanguage:"en",preloadedDependencies:deps};
-  return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify(content)]],slides:slides.length};
+  return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify(content)]].concat(media.files()),slides:slides.length,images:media.count()};
 }
 function refreshSlides(t){
   const recs=t.recs,{errs,warns}=checkSlides(recs),pv=$("preview");
@@ -483,11 +786,14 @@ function refreshSlides(t){
         else [...LETTERS].forEach(L=>{const o=g(r,"Option "+L);if(!o)return;const d=el("div","opt"+(c.includes(L)?" correct":""),L+". "+o);if(g(r,"Feedback "+L))d.appendChild(el("div","fb",g(r,"Feedback "+L)));box.appendChild(d);});
         if(g(r,"General feedback")){const d=el("div","gfb");d.appendChild(el("strong",null,"General feedback: "));d.appendChild(document.createTextNode(g(r,"General feedback")));box.appendChild(d);}}}
     const e=[],w=[];s.rows.forEach(i=>{errs[i].forEach(x=>e.push("Row "+(i+2)+": "+x));warns[i].forEach(x=>w.push("Row "+(i+2)+": "+x));});
+    if(s.img)addImgLine(box,s.img.r).forEach(x=>w.push("Row "+(s.img.i+2)+": "+x));
+    {const ii=s.img?s.img.i:s.rows[0];addSlideButton(box,ii,recs[ii]);}
     if(e.length)box.classList.add("err");errBox(box,e);errBox(box,w,"warn");pv.appendChild(box);
   });
   const nErr=errs.filter(e=>e.length).length;
-  $("summary").textContent="Course Presentation: "+S.length+" slide"+(S.length===1?"":"s")+" · "+qs+" question"+(qs===1?"":"s")+" · "+dr+" drag the words";
-  if(finishStatus(nErr,recs.length,t.dups,"All "+recs.length+" rows look fine."))$("slidesBtn").disabled=false;
+  const nS=S.length+S.filter(s=>s.img&&s.act&&findImage(imgName(s.img.r))).length;
+  $("summary").textContent=imgSummary(recs)+"Course Presentation: "+nS+" slide"+(nS===1?"":"s")+" · "+qs+" question"+(qs===1?"":"s")+" · "+dr+" drag the words";
+  if(finishStatus(nErr,recs.length,t.dups,"All "+recs.length+" rows look fine.",rowsToFix(errs)))$("slidesBtn").disabled=false;
 }
 
 /* ---------- Branching Scenario ---------- */
@@ -531,15 +837,27 @@ function bsNode(type,nextId,feedback){
   const node={contentBehaviour:"useBehavioural",feedback:feedback||{subtitle:"",title:""},forceContentFinished:"useBehaviourGlobals",proceedButtonText:"Continue",showContentTitle:false,type};
   if(nextId!==undefined)node.nextContentId=nextId;return node;
 }
+function bsImageNode(r,img,media){
+  const t=g(r,"Title")||g(r,"ID"),els=[];
+  if(g(r,"Title"))els.push(cpEl(cpText("<h2>"+xesc(g(r,"Title"))+"</h2>",t),2,2,96,11));
+  const y=g(r,"Title")?14:2,h=g(r,"Title")?84:96;
+  const im=h5pImage(img,imgAlt(r),media);
+  if(g(r,"Text")){els.push(cpEl(cpText(fmt(g(r,"Text")),t),2,y,52,h));const b=fitBox(img,56,y,42,h);els.push(cpEl(im,b[0],b[1],b[2],b[3]));}
+  else{const b=fitBox(img,2,y,96,h);els.push(cpEl(im,b[0],b[1],b[2],b[3]));}
+  const top=clone(TPL.cpTop);
+  const pres=Object.assign({},top.presentation,{slides:[{elements:els,slideBackgroundSelector:{},keywords:[{main:t.slice(0,60)}]}],keywordListEnabled:false});
+  return {library:"H5P.CoursePresentation 1.27",metadata:{contentType:"Course Presentation",license:"U",title:t.slice(0,60)},params:{presentation:pres,override:top.override,l10n:top.l10n},subContentId:uuid()};
+}
 function buildBranch(recs,title,description,opts){
-  const A=analyseBranch(recs);const map=v=>isEnd(v)?-1:A.idx[String(v).trim().toUpperCase()];
+  const A=analyseBranch(recs);const map=v=>isEnd(v)?-1:A.idx[String(v).trim().toUpperCase()];const media=mediaCollector();
   const content=recs.map(r=>{
     const t=bt(r),head=g(r,"Title")?"<h3>"+xesc(g(r,"Title"))+"</h3>":"";
     if(t==="DECISION"){
       const alts=choicesOf(r).map(c=>{const fb={title:"",subtitle:""};if(c.fb){const m=c.fb.match(/^(.{1,110}?[.!?])\s+(.+)$/);if(m){fb.title=m[1];fb.subtitle=m[2];}else fb.title=c.fb;}if(c.score&&opts.scoring==="dynamic-score")fb.endScreenScore=Number(c.score);return {feedback:fb,nextContentId:map(c.go),text:c.text};});
       return bsNode({library:"H5P.BranchingQuestion 1.0",metadata:{contentType:"Branching Question",license:"U",title:(g(r,"Title")||g(r,"ID")).slice(0,60)},params:{branchingQuestion:{question:head+fmt(g(r,"Text")),alternatives:alts}},subContentId:uuid()});
     }
-    const text={library:"H5P.AdvancedText 1.1",metadata:{contentType:"Text",license:"U",title:(g(r,"Title")||g(r,"ID")).slice(0,60)},params:{text:head+fmt(g(r,"Text"))},subContentId:uuid()};
+    const img=findImage(imgName(r));
+    const text=img?bsImageNode(r,img,media):{library:"H5P.AdvancedText 1.1",metadata:{contentType:"Text",license:"U",title:(g(r,"Title")||g(r,"ID")).slice(0,60)},params:{text:head+fmt(g(r,"Text"))},subContentId:uuid()};
     if(t==="END"){const fb={title:g(r,"Title")||"End of scenario",subtitle:""};if(opts.scoring==="static-end-score")fb.endScreenScore=Number(g(r,"Score")||0);return bsNode(text,-1,fb);}
     return bsNode(text,map(g(r,"Next")));
   });
@@ -549,8 +867,9 @@ function buildBranch(recs,title,description,opts){
   top.behaviour=Object.assign(top.behaviour||{},{enableBackwardsNavigation:opts.back});
   if(top.endScreens&&top.endScreens[0]){top.endScreens[0].endScreenTitle="Scenario complete";top.endScreens[0].endScreenSubtitle="Review the feedback at each decision point. The quality of your reasoning matters more than any single choice.";}
   const bs=Object.assign(top,{content});
-  const h5pjson={title,language:"en",mainLibrary:"H5P.BranchingScenario",embedTypes:TPL.bsEmbed,license:"U",defaultLanguage:"en",preloadedDependencies:clone(TPL.bsDeps)};
-  return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify({branchingScenario:bs})]],A};
+  const deps=clone(TPL.bsDeps);if(media.count()&&!deps.some(d=>d.machineName==="H5P.Image"))deps.unshift({machineName:"H5P.Image",majorVersion:1,minorVersion:1});
+  const h5pjson={title,language:"en",mainLibrary:"H5P.BranchingScenario",embedTypes:TPL.bsEmbed,license:"U",defaultLanguage:"en",preloadedDependencies:deps};
+  return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify({branchingScenario:bs})]].concat(media.files()),A,images:media.count()};
 }
 
 /* UI */
@@ -604,8 +923,28 @@ $("csv").addEventListener("input",refresh);$("title").addEventListener("input",r
 $("openBtn").onclick=()=>$("file").click();
 $("file").onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{$("csv").value=rd.result;if(!$("title").value)$("title").value=f.name.replace(/\.csv$/i,"");refresh();};rd.readAsText(f,"utf-8");};
 $("clearBtn").onclick=()=>{$("csv").value="";refresh();};
+function imgSummary(recs){
+  const names=[...new Set(recs.map(imgName).filter(Boolean))];let out="";
+  const slides=names.filter(n=>pdfRef(n));
+  if(slides.length){const ready=slides.filter(n=>findImage(n)).length;out+="Slides: "+ready+" of "+slides.length+" ready"+(slidesPending()?" (preparing\u2026)":"")+" \u00b7 ";}
+  const named=new Set(names.filter(n=>!pdfRef(n)).map(imgKey));
+  if(named.size){const found=[...named].filter(n=>findImage(n)).length;out+="Images: "+found+" of "+named.size+" added \u00b7 ";}
+  return out;}
+function showImgList(){const k=Object.keys(IMAGES),p=Object.values(PDFS);const items=k.map(x=>IMAGES[x].name+" ("+IMAGES[x].w+"×"+IMAGES[x].h+")").concat(p.map(x=>x.name+" (lecture PDF)"));$("imgList").textContent=items.length?"Added: "+items.join(", "):"No images added.";}
+function readImage(f){return new Promise(res=>{const fr=new FileReader();fr.onload=()=>{const bytes=new Uint8Array(fr.result);const url=URL.createObjectURL(f);const im=new Image();
+  const done=(w,h)=>{URL.revokeObjectURL(url);let mime=f.type;if(!mime){const e=f.name.toLowerCase().split(".").pop();mime={png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",svg:"image/svg+xml"}[e]||"image/png";}res({key:imgKey(f.name),name:f.name,bytes,mime,w:w||800,h:h||600});};
+  im.onload=()=>done(im.naturalWidth,im.naturalHeight);im.onerror=()=>done(0,0);im.src=url;};fr.readAsArrayBuffer(f);});}
+$("imgBtn").onclick=()=>$("imgs").click();
+$("imgs").onchange=async e=>{const all=[...e.target.files];
+  for(const f of all.filter(f=>/\.pdf$/i.test(f.name))){const base=f.name.replace(/^.*[\\/]/,"").replace(/\.pdf$/i,"").trim().toLowerCase();PDFS[base]={name:f.name,base,bytes:new Uint8Array(await f.arrayBuffer())};Object.keys(RENDERED).filter(k=>k.startsWith(base+"#")).forEach(k=>delete RENDERED[k]);loadPdfJs().catch(()=>{});}
+  for(const f of all.filter(f=>/\.(png|jpe?g|gif|svg)$/i.test(f.name))){const img=await readImage(f);IMAGES[img.key]=img;}
+  e.target.value="";showImgList();refresh();};
+$("imgClear").onclick=()=>{Object.keys(IMAGES).forEach(k=>delete IMAGES[k]);Object.keys(PDFS).forEach(k=>delete PDFS[k]);Object.keys(RENDERED).forEach(k=>delete RENDERED[k]);showImgList();refresh();};
 
 function errBox(box,list,cls){if(!list.length)return;const d=el("div",cls||"errs");list.forEach(e=>d.appendChild(el("div",null,(cls==="warn"?"\u26a0 ":"\u26d4 ")+e)));box.appendChild(d);}
+/* v11: name the rows to fix, in a form that can be pasted straight to the agent */
+function rowsToFix(errs){const l=errs.map((e,i)=>e.length?"Row "+(i+2)+": "+e.join("; "):null).filter(Boolean);
+  return l.length?l.length+" row"+(l.length>1?"s need":" needs")+" fixing before download. "+l.slice(0,6).join(". ")+(l.length>6?". (and "+(l.length-6)+" more)":"")+". Paste this message to the agent, or edit the rows in the box.":"";}
 function finishStatus(nErr,rows,dups,okMsg,badMsg){
   const st=$("status");st.hidden=false;
   if(nErr&&badMsg){st.className="status bad";st.textContent=badMsg;return false;}
@@ -614,23 +953,29 @@ function finishStatus(nErr,rows,dups,okMsg,badMsg){
   st.className="status ok";st.textContent=okMsg+(dups?" "+dups+" repeated row"+(dups>1?"s were":" was")+" removed.":"");return true;
 }
 function refreshBook(t){
-  const recs=t.recs,errs=checkBook(recs),pv=$("preview");
-  let ch=0,tx=0,qs=0,dr=0;
+  const recs=t.recs,errs=checkBook(recs),warns=warnBook(recs),pv=$("preview");
+  let ch=0,tx=0,qs=0,dr=0,acc=0,cds=0,tb=0,prev="";
   recs.forEach((r,i)=>{
     const ty=lt(r);const box=el("div","q"+(errs[i].length?" err":"")+(ty==="CHAPTER"?" chapter":""));
-    box.appendChild(el("div","meta","Row "+(i+2)+" \u00b7 "+ty+(g(r,"Title")&&ty!=="CHAPTER"?" \u00b7 "+g(r,"Title"):"")));
-    if(ty==="CHAPTER"){ch++;box.appendChild(el("div","stem","Chapter: "+g(r,"Title")));if(g(r,"Text")){const d=el("div");d.innerHTML=fmt(g(r,"Text"));box.appendChild(d);}}
-    else if(ty==="TEXT"){tx++;const d=el("div");d.innerHTML=fmt(g(r,"Text"));box.appendChild(d);}
+    if((ty==="ACCORDION"||ty==="CARDS")&&prev!==ty){if(ty==="ACCORDION")acc++;else cds++;}
+    const grp=(ty==="ACCORDION"||ty==="CARDS")?(prev===ty?" \u00b7 continues the "+(ty==="CARDS"?"card set":"accordion")+" above":" \u00b7 new "+(ty==="CARDS"?"set of Dialog Cards":"Accordion")):"";prev=ty;
+    box.appendChild(el("div","meta","Row "+(i+2)+" \u00b7 "+ty+(g(r,"Title")&&ty!=="CHAPTER"&&ty!=="CARDS"&&ty!=="ACCORDION"?" \u00b7 "+g(r,"Title"):"")+grp));
+    if(ty==="CHAPTER"){ch++;box.appendChild(el("div","stem","Page: "+g(r,"Title")));if(g(r,"Text")){const d=el("div");d.innerHTML=fmt(g(r,"Text"));box.appendChild(d);}}
+    else if(ty==="TEXT"){tx++;if(g(r,"Title"))box.appendChild(el("div","stem",g(r,"Title")));const d=el("div");d.innerHTML=fmt(g(r,"Text"));box.appendChild(d);}
+    else if(ty==="TABLE"){tb++;if(g(r,"Title"))box.appendChild(el("div","stem",g(r,"Title")));const d=el("div");d.innerHTML=tableHtml(g(r,"Text"));box.appendChild(d);}
+    else if(ty==="ACCORDION"){const d=el("details","acc");const s=el("summary",null,g(r,"Title")||"(no heading)");d.appendChild(s);const b=el("div");b.innerHTML=fmt(g(r,"Text"));d.appendChild(b);box.appendChild(d);}
+    else if(ty==="CARDS"){const d=el("div","card2");const f=el("div");f.appendChild(el("div","lab","Front"));const fb=el("div");fb.innerHTML=cardHtml(g(r,"Title"));f.appendChild(fb);const b=el("div");b.appendChild(el("div","lab","Back"));const bb=el("div");bb.innerHTML=cardHtml(g(r,"Text"));b.appendChild(bb);d.appendChild(f);d.appendChild(b);box.appendChild(d);}
     else if(ty==="DRAG"){dr++;const d=el("div","stem");d.innerHTML=xesc(g(r,"Text")).replace(/\|\|/g,"<br><br>").replace(/\*([^*]+)\*/g,"<u><strong>$1</strong></u>");box.appendChild(d);}
     else if(["MC","MA","TF"].includes(ty)){qs++;box.appendChild(el("div","stem",g(r,"Text")));const c=g(r,"Correct").toUpperCase().replace(/\s/g,"").split(",");
       if(ty==="TF")["True","False"].forEach(v=>box.appendChild(el("div","opt"+(c[0]===v.toUpperCase()?" correct":""),v)));
       else [...LETTERS].forEach(L=>{const o=g(r,"Option "+L);if(!o)return;const d=el("div","opt"+(c.includes(L)?" correct":""),L+". "+o);if(g(r,"Feedback "+L))d.appendChild(el("div","fb",g(r,"Feedback "+L)));box.appendChild(d);});
       if(g(r,"General feedback")){const d=el("div","gfb");d.appendChild(el("strong",null,"General feedback: "));d.appendChild(document.createTextNode(g(r,"General feedback")));box.appendChild(d);}}
-    errBox(box,errs[i]);pv.appendChild(box);
+    const iw=(ty==="ACCORDION"||ty==="TABLE"?[]:addImgLine(box,r));if(["CHAPTER","TEXT","CARDS"].includes(ty))addSlideButton(box,i,r);
+    errBox(box,errs[i]);errBox(box,iw.concat(warns[i]),"warn");pv.appendChild(box);
   });
   const nErr=errs.filter(e=>e.length).length;
-  $("summary").textContent="Interactive Book: "+ch+" chapter"+(ch===1?"":"s")+" \u00b7 "+tx+" text block"+(tx===1?"":"s")+" \u00b7 "+qs+" question"+(qs===1?"":"s")+" \u00b7 "+dr+" drag the words";
-  if(finishStatus(nErr,recs.length,t.dups,"All "+recs.length+" rows look fine."))$("bookBtn").disabled=false;
+  $("summary").textContent=imgSummary(recs)+"Interactive Book: "+ch+" page"+(ch===1?"":"s")+" \u00b7 "+tx+" text block"+(tx===1?"":"s")+" \u00b7 "+qs+" question"+(qs===1?"":"s")+" \u00b7 "+dr+" drag the words"+(acc?" \u00b7 "+acc+" accordion"+(acc===1?"":"s"):"")+(tb?" \u00b7 "+tb+" table"+(tb===1?"":"s"):"")+(cds?" \u00b7 "+cds+" set"+(cds===1?"":"s")+" of Dialog Cards":"")+(COVER?" \u00b7 cover image":"");
+  if(finishStatus(nErr,recs.length,t.dups,"All "+recs.length+" rows look fine.",rowsToFix(errs)))$("bookBtn").disabled=false;
 }
 function refreshBranch(t){
   const recs=t.recs,A=analyseBranch(recs),pv=$("preview"),D=A.design;
@@ -644,7 +989,8 @@ function refreshBranch(t){
     if(ty==="INFO")box.appendChild(el("div","arrow","\u2192 "+nameOf(g(r,"Next"))));
     if(ty==="DECISION")choicesOf(r).forEach(c=>{const o=el("div","opt",c.L+". "+c.text+"  \u2192 "+nameOf(c.go)+(c.score?"  ("+c.score+" pts)":""));if(c.fb)o.appendChild(el("div","fb",c.fb));box.appendChild(o);});
     if(ty==="END")box.appendChild(el("div","arrow","Ending"+(g(r,"Score")?" \u00b7 score "+g(r,"Score"):"")));
-    errBox(box,A.errs[i]);errBox(box,A.warns[i],"warn");pv.appendChild(box);
+    let iw=[];if(ty==="DECISION"){if(imgName(r))iw.push("Images cannot go on a DECISION row, so this one is left out. Put it on the INFO row before the decision");}else{iw=addImgLine(box,r);addSlideButton(box,i,r);}
+    errBox(box,A.errs[i]);errBox(box,A.warns[i].concat(iw),"warn");pv.appendChild(box);
   });
   const hints=[];
   if(D.decisions&&!D.genuine)hints.push("No decision sends students to different places. This works like a quiz with extra steps; give the tempting wrong choices their own consequence nodes.");
@@ -658,12 +1004,19 @@ function refreshBranch(t){
     "Endings: "+D.endings+" \u00b7 longest route: "+D.longest+" nodes"
   ].concat(hints).forEach(x=>ul.appendChild(el("li",null,x)));dz.appendChild(ul);
   const nErr=A.errs.filter(e=>e.length).length;
-  $("summary").textContent="Branching Scenario: "+D.nodes+" node"+(D.nodes===1?"":"s")+" \u00b7 "+D.decisions+" decision"+(D.decisions===1?"":"s")+" \u00b7 "+D.endings+" ending"+(D.endings===1?"":"s");
+  $("summary").textContent=imgSummary(recs)+"Branching Scenario: "+D.nodes+" node"+(D.nodes===1?"":"s")+" \u00b7 "+D.decisions+" decision"+(D.decisions===1?"":"s")+" \u00b7 "+D.endings+" ending"+(D.endings===1?"":"s");
   const mMsg=A.missing.length?"Some rows link to nodes that are not in the box yet: "+A.missing.join(", ")+". If the agent exported in batches, paste the next batch below this one; these messages clear once every node is in. If there are no more batches, ask the agent to add those nodes."+(nErr>A.errs.filter(e=>e.length&&e.every(x=>x.includes("not in the box yet"))).length?" Other rows also need fixing; see the messages in the preview.":""):"";
   if(finishStatus(nErr,recs.length,t.dups,"All "+recs.length+" nodes connect properly.",mMsg))$("branchBtn").disabled=false;
 }
-function saveH5P(files,title){const blob=zip(files);const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(title.replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,50)||"h5p")+".h5p";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
-$("bookBtn").onclick=()=>{const title=$("title").value.trim();const t=toRecords(parseCSV($("csv").value));saveH5P(buildBook(t.recs,title,$("desc").value.trim(),{solutions:$("bookSolutions").checked,shuffle:true,pass:50}).files,title);};
+function saveH5P(files,title){if(slidesPending()){alert("Slides are still being prepared. Wait a moment, then download again.");return;}const blob=zip(files);const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(title.replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,50)||"h5p")+".h5p";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
+$("bookBtn").onclick=()=>{const title=$("title").value.trim();const t=toRecords(parseCSV($("csv").value));saveH5P(buildBook(t.recs,title,$("desc").value.trim(),{solutions:$("bookSolutions").checked,shuffle:true,pass:50,colour:$("bookColour").value,cover:COVER}).files,title);};
+/* v10: book colour and cover image */
+const DEFAULT_COLOUR="#1768c4";
+$("bookColour").addEventListener("input",()=>{$("bookColourHex").textContent=$("bookColour").value;});
+$("bookColourReset").onclick=()=>{$("bookColour").value=DEFAULT_COLOUR;$("bookColourHex").textContent=DEFAULT_COLOUR;};
+$("coverBtn").onclick=()=>$("coverFile").click();
+$("coverFile").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f||!/\.(png|jpe?g|gif)$/i.test(f.name))return;COVER=await readImage(f);$("coverName").textContent="Cover: "+COVER.name+" ("+COVER.w+"\u00d7"+COVER.h+"). Wide images (about 3:1) suit the cover best.";refresh();};
+$("coverClear").onclick=()=>{COVER=null;$("coverName").textContent="No cover image. The cover shows the title and description only.";refresh();};
 $("branchBtn").onclick=()=>{const title=$("title").value.trim();const t=toRecords(parseCSV($("csv").value));saveH5P(buildBranch(t.recs,title,$("desc").value.trim(),{scoring:$("bsScoring").value,back:$("bsBack").checked}).files,title);};
 $("slidesBtn").onclick=()=>{const title=$("title").value.trim();const t=toRecords(parseCSV($("csv").value));saveH5P(buildSlides(t.recs,title,{solutions:$("slidesSolutions").checked,shuffle:true,pass:50,menu:$("slidesMenu").checked}).files,title);};
 ["bsScoring","bsBack","bookSolutions","slidesSolutions","slidesMenu"].forEach(id=>$(id).addEventListener("input",refresh));
