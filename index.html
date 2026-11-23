@@ -53,7 +53,8 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 .imgline{font-size:13px;margin-top:6px}
 .imgline.ok{color:var(--ok)}
 .imgline.miss{color:var(--bad)}
-.thumb{display:block;max-height:110px;max-width:220px;margin-top:6px;border:1px solid var(--line);border-radius:6px}
+.thumb{display:block;max-height:110px;max-width:220px;margin-top:6px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.slidepick.pic img{aspect-ratio:4/3}
 .thumb.crop{cursor:zoom-in}
 .cropov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
 .croppanel{background:var(--card);color:var(--ink);border-radius:10px;padding:16px;max-width:min(1100px,96vw);max-height:96vh;overflow:auto}
@@ -84,7 +85,7 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 <main>
 <h1>Quiz and H5P Converter</h1>
 <p class="muted">Turns the CSV from the course agents into a Canvas quiz (.zip), or an H5P Question Set, Interactive Book, Course Presentation or Branching Scenario (.h5p), with all feedback included. The page works out which from the header row. Images named in the CSV can be added too. Everything happens in this page; nothing is uploaded anywhere.</p>
-<p class="muted small">Version 12 · 19 November 2026</p>
+<p class="muted small">Version 13 · 23 November 2026</p>
 
 <div class="card">
 <h2>1. Title and description</h2>
@@ -107,11 +108,12 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 <h3 class="imgh">Images (optional)</h3>
 <p class="muted small">If the CSV has an Image column, add those image files here (PNG, JPG, GIF or SVG). They are matched by file name and placed in the Interactive Book, Course Presentation or Branching Scenario. Quizzes ignore images.</p>
 <p class="muted small"><strong>Slides from a lecture:</strong> when the CSV names a slide, such as <code>Pain_mechanisms.pdf#12</code>, add that lecture saved as a PDF here and the page turns slide 12 into an image. Once a PDF is added, you can also choose slides yourself: each page, text block or card in the preview gets a <strong>Choose a slide</strong> button. Click any slide image to crop it to the figure. Save PowerPoint files as PDF first, keeping the same name. The PDF stays on your computer.</p>
+<p class="muted small"><strong>Pictures from a Word document:</strong> when the CSV names a figure or question, such as <code>Workbook.docx#Figure 2</code> or <code>Workbook.docx#Q8</code>, add that Word file (.docx) here. The page takes out its pictures and matches them to the figure captions and questions. Check each one in the preview, and use <strong>Change picture</strong> to pick a different one. Labels drawn in Word on top of a picture are not part of the picture, so they do not come across.</p>
 <p class="muted small">Only use images you have the right to share: check figures taken from textbooks or other publishers before they go into FLO, and never use images of real patients without consent.</p>
 <div class="row">
-<button id="imgBtn" type="button">Add images or lecture PDFs</button>
-<input id="imgs" type="file" accept="image/png,image/jpeg,image/gif,image/svg+xml,application/pdf,.png,.jpg,.jpeg,.gif,.svg,.pdf" multiple hidden>
-<button id="imgClear" type="button">Remove images and PDFs</button>
+<button id="imgBtn" type="button">Add images, lecture PDFs or Word files</button>
+<input id="imgs" type="file" accept="image/png,image/jpeg,image/gif,image/svg+xml,application/pdf,.png,.jpg,.jpeg,.gif,.svg,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden>
+<button id="imgClear" type="button">Remove images, PDFs and Word files</button>
 </div>
 <p id="imgList" class="muted small">No images added.</p>
 <div id="status" class="status" hidden></div>
@@ -222,7 +224,7 @@ function check(recs){
   const errs=recs.map(()=>[]);const pools={};
   recs.forEach((r,i)=>{
     const e=errs[i],t=typeOf(r);
-    if(!TYPES[t]){e.push("Type '"+g(r,"Type")+"' must be one of "+Object.keys(TYPES).join(", "));return;}
+    if(!TYPES[t]){e.push(unknownType(g(r,"Type"),Object.keys(TYPES)));return;}
     if(t==="CASE"){ if(!caseText(r))e.push("Case text is empty"); return; }
     if(!g(r,"Question"))e.push("Question is empty");
     const pts=g(r,"Points")||"1";
@@ -531,7 +533,124 @@ async function openSlidePicker(idx,r){
 function addSlideButton(box,idx,r){if(!Object.keys(PDFS).length)return;
   const b=el("button","small",pdfRef(imgName(r))?"Change slide":"Choose a slide");b.type="button";b.style.marginTop="6px";b.style.padding="4px 10px";b.onclick=()=>openSlidePicker(idx,r);box.appendChild(b);}
 const slidesPending=()=>Object.values(RENDERED).filter(v=>v==="pending").length;
-function findImage(name){const pr=pdfRef(name);if(pr)return slideImage(pr);const k=imgKey(name);if(!k)return null;if(IMAGES[k])return IMAGES[k];const s=stripExt(k);for(const key in IMAGES){if(stripExt(key)===s)return IMAGES[key];}return null;}
+/* ---------- v13: pictures from a Word document, named as "Workbook.docx#Figure 2", "#Q8" or "#picture 5" ---------- */
+const DOCS={};  /* base name (lower case, no extension) -> {name, base, pics:[{n,fig,q,img}], skipped} */
+/* Read a .zip (a .docx is one) using the browser's own decompression */
+function unzipEntries(bytes){
+  const dv=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);let eocd=-1;
+  for(let i=bytes.length-22;i>=Math.max(0,bytes.length-65557);i--){if(dv.getUint32(i,true)===0x06054b50){eocd=i;break;}}
+  if(eocd<0)throw new Error("this is not a Word document (.docx). Save it from Word as a .docx file and add it again");
+  const n=dv.getUint16(eocd+10,true);let p=dv.getUint32(eocd+16,true);const ents={},td=new TextDecoder();
+  for(let k=0;k<n&&dv.getUint32(p,true)===0x02014b50;k++){
+    const method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),el2=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),off=dv.getUint32(p+42,true);
+    ents[td.decode(bytes.subarray(p+46,p+46+nl))]={method,csize,off};p+=46+nl+el2+cl;}
+  return {has:nm=>!!ents[nm],async get(nm){const e=ents[nm];if(!e)return null;
+    const s=e.off+30+dv.getUint16(e.off+26,true)+dv.getUint16(e.off+28,true);const data=bytes.subarray(s,s+e.csize);
+    if(e.method===0)return data.slice();if(e.method!==8)throw new Error("part of this Word file uses a format the page cannot read");
+    if(typeof DecompressionStream==="undefined")throw new Error("this browser cannot open Word files. Use a current version of Chrome, Edge, Safari or Firefox");
+    const buf=await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer();return new Uint8Array(buf);}};
+}
+const NS_W="http://schemas.openxmlformats.org/wordprocessingml/2006/main",NS_R="http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+function normPath(p){const out=[];p.split("/").forEach(s=>{if(s===".."){out.pop();}else if(s&&s!=="."){out.push(s);}});return out.join("/");}
+/* Word keeps a second copy of each drawing for older versions (mc:Fallback); skip it so pictures are not counted twice */
+function inFallback(e){for(let a=e.parentNode;a&&a.nodeType===1;a=a.parentNode){if(a.localName==="Fallback")return true;}return false;}
+function paraText(p){let s="";const ts=p.getElementsByTagNameNS(NS_W,"t");for(const t of ts){let a=t.parentNode;while(a&&!(a.localName==="p"&&a.namespaceURI===NS_W))a=a.parentNode;if(a===p)s+=t.textContent;}return s.replace(/\s+/g," ").trim();}
+function imgSize(bytes,mime){return new Promise(res=>{const u=URL.createObjectURL(new Blob([bytes],{type:mime}));const im=new Image();
+  im.onload=()=>{URL.revokeObjectURL(u);res([im.naturalWidth,im.naturalHeight]);};im.onerror=()=>{URL.revokeObjectURL(u);res([0,0]);};im.src=u;});}
+/* Apply Word's crop [left, top, right, bottom as fractions]; PNG keeps transparency */
+function cropBytes(bytes,mime,w,h,c){return new Promise(res=>{const u=URL.createObjectURL(new Blob([bytes],{type:mime}));const im=new Image();
+  im.onload=()=>{const x=Math.round(w*c[0]),y=Math.round(h*c[1]),cw=Math.max(1,Math.round(w*(1-c[0]-c[2]))),ch=Math.max(1,Math.round(h*(1-c[1]-c[3])));
+    const cv=document.createElement("canvas");cv.width=cw;cv.height=ch;cv.getContext("2d").drawImage(im,x,y,cw,ch,0,0,cw,ch);URL.revokeObjectURL(u);
+    const out=mime==="image/jpeg"?"image/jpeg":"image/png";cv.toBlob(async bl=>{res(bl?{bytes:new Uint8Array(await bl.arrayBuffer()),w:cw,h:ch,mime:out}:null);},out,0.9);};
+  im.onerror=()=>{URL.revokeObjectURL(u);res(null);};im.src=u;});}
+async function readDocx(f){
+  const bytes=new Uint8Array(await f.arrayBuffer());const z=unzipEntries(bytes);const td=new TextDecoder(),dp=new DOMParser();
+  const docXml=await z.get("word/document.xml");if(!docXml)throw new Error("this file has no Word document inside. Save it from Word as a .docx file and add it again");
+  const rels={};const rx=await z.get("word/_rels/document.xml.rels");
+  if(rx){const rd=dp.parseFromString(td.decode(rx),"application/xml");for(const r of rd.getElementsByTagName("Relationship")){if(r.getAttribute("TargetMode")==="External")continue;const t=r.getAttribute("Target")||"";rels[r.getAttribute("Id")]=normPath(t.startsWith("/")?t.slice(1):"word/"+t);}}
+  const doc=dp.parseFromString(td.decode(docXml),"application/xml");const ev=[];
+  for(const e of doc.getElementsByTagName("*")){const ln=e.localName;
+    if(ln==="p"&&e.namespaceURI===NS_W){if(inFallback(e))continue;const tx=paraText(e);if(!tx)continue;const o={k:"t",tx};
+      const fm=tx.length<250&&tx.match(/^(?:Figure|Fig\.?)\s*(\d+)\b\s*[:.–—-]?\s*(.*)$/i);if(fm){o.fig=+fm[1];o.cap=fm[2];}
+      const qm=tx.match(/^(?:Question|Q)\s*(\d+)\b/i);if(qm)o.q=+qm[1];ev.push(o);}
+    else if(ln==="blip"||ln==="imagedata"){if(inFallback(e))continue;const id=e.getAttributeNS(NS_R,ln==="blip"?"embed":"id")||e.getAttribute(ln==="blip"?"r:embed":"r:id");if(!id||!rels[id])continue;
+      /* Word often shows only part of a picture: a crop stored as a:srcRect, in thousandths of a percent */
+      let crop=null;if(ln==="blip"&&e.parentNode){const sr=[...e.parentNode.children].find(c=>c.localName==="srcRect");
+        if(sr){const v=k=>Math.max(0,parseInt(sr.getAttribute(k)||"0",10)||0)/100000;const c=[v("l"),v("t"),v("r"),v("b")];if(c.some(x=>x>0)&&c[0]+c[2]<0.98&&c[1]+c[3]<0.98)crop=c;}}
+      ev.push({k:"i",path:rels[id],crop});}}
+  const pics=[],seen=new Set(),sigs=new Set();let lastQ=null,skipped={small:0,format:0};
+  for(let i=0;i<ev.length;i++){const x=ev[i];
+    if(x.k==="t"){if(x.q!==undefined)lastQ=x.q;continue;}
+    const ck=x.path+"|"+(x.crop?x.crop.map(v=>v.toFixed(4)).join(","):"");if(seen.has(ck))continue;seen.add(ck);
+    const ext=x.path.toLowerCase().split(".").pop();let mime={png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif"}[ext];
+    if(!mime){skipped.format++;continue;}
+    let b=await z.get(x.path);if(!b)continue;const sig=b.length+":"+crc32(b)+"|"+(x.crop||"");if(sigs.has(sig))continue;sigs.add(sig);
+    let [w,h]=await imgSize(b,mime);
+    let full=null;if(x.crop&&w){const c=await cropBytes(b,mime,w,h,x.crop);if(c){full={bytes:b,mime,w,h};b=c.bytes;w=c.w;h=c.h;mime=c.mime;}}
+    if(!w||Math.max(w,h)<160){skipped.small++;continue;}
+    /* The figure a picture belongs to is the next caption, unless a question comes first */
+    let fig=null,cap="";for(let j=i+1;j<ev.length;j++){const y=ev[j];if(y.k!=="t")continue;if(y.fig!==undefined){fig=y.fig;cap=y.cap||"";break;}if(y.q!==undefined)break;}
+    const n=pics.length+1;const base=f.name.replace(/\.docx?$/i,"").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").toLowerCase()||"word";
+    const ex=m=>m==="image/jpeg"?"jpg":m==="image/gif"?"gif":"png";
+    const img={key:base+"_picture"+n+"."+ex(mime),name:"picture "+n+" of "+f.name,bytes:b,mime,w,h,docpic:true};
+    if(full)img.full={key:base+"_picture"+n+"_whole."+ex(full.mime),name:"picture "+n+" (whole) of "+f.name,bytes:full.bytes,mime:full.mime,w:full.w,h:full.h,docpic:true};
+    pics.push({n,fig,cap,q:lastQ,img});}
+  return {name:f.name,base:f.name.replace(/^.*[\\/]/,"").replace(/\.docx?$/i,"").trim().toLowerCase(),pics,skipped};
+}
+/* "Workbook.docx#Figure 2", "Figure 2", "Workbook.docx#Q8", "Question 8", "Workbook.docx#picture 5" or "Workbook.docx#5" */
+function docRef(v){
+  let s=String(v||"").trim(),full=false;const fm=s.match(/^(.*?\d)\s*\(?\s*(?:full|whole|uncropped)\s*\)?$/i);if(fm){s=fm[1];full=true;}
+  let m=s.match(/^(?:(.+?)\.docx?\s*(?:#|,)?\s*)?#?\s*(figure|fig\.?|question|q|picture|pic|image)\s*(\d+)$/i);
+  if(m){const k=m[2].toLowerCase();return {base:(m[1]||"").replace(/^.*[\\/]/,"").trim().toLowerCase(),kind:/^fig/.test(k)?"fig":/^q/.test(k)?"q":"pic",n:parseInt(m[3],10),bare:!m[1],full};}
+  m=s.match(/^(.+?)\.docx?\s*#\s*(\d+)$/i);if(m)return {base:m[1].replace(/^.*[\\/]/,"").trim().toLowerCase(),kind:"pic",n:parseInt(m[2],10),full};
+  return null;
+}
+function findDoc(base){
+  if(DOCS[base])return {doc:DOCS[base],exact:true};
+  const nb=normBase(base);for(const k in DOCS){if(normBase(k)===nb)return {doc:DOCS[k],exact:true};}
+  const all=Object.values(DOCS);if(all.length===1)return {doc:all[0],exact:!base};
+  return null;
+}
+const refLabel=d=>(d.kind==="fig"?"Figure "+d.n:d.kind==="q"?"Question "+d.n:"picture "+d.n)+(d.full?" (whole picture)":"");
+/* Work out which picture a reference means: {doc, pic, cands} */
+function resolveDoc(d){
+  const f=findDoc(d.base);if(!f)return {doc:null};const doc=f.doc;let cands=[];
+  if(d.kind==="pic")cands=doc.pics.filter(p=>p.n===d.n);
+  else if(d.kind==="fig")cands=doc.pics.filter(p=>p.fig===d.n);
+  else cands=doc.pics.filter(p=>p.q===d.n&&p.fig===null).concat(doc.pics.filter(p=>p.q===d.n&&p.fig!==null));
+  /* A figure uses its largest picture; a question uses its first picture (in document order) */
+  const pic=(d.kind==="fig"?cands.slice().sort((a,b)=>(b.img.w*b.img.h)-(a.img.w*a.img.h)):cands)[0]||null;
+  return {doc,pic,cands,exact:f.exact};
+}
+function docImage(d){const r=resolveDoc(d);return r.pic?(d.full&&r.pic.img.full?r.pic.img.full:r.pic.img):null;}
+function openDocPicker(idx,r){
+  const docs=Object.values(DOCS);if(!docs.length)return;
+  const cur=docRef(imgName(r)),res=cur?resolveDoc(cur):{};let doc=res.doc||docs[0],chosen=res.pic?res.pic.n:0,whole=!!(cur&&cur.full);
+  const ov=el("div","cropov"),panel=el("div","croppanel");panel.style.width="min(1000px,94vw)";ov.appendChild(panel);
+  panel.appendChild(el("strong",null,"Choose a picture for row "+(idx+2)+(g(r,"Title")?" ("+g(r,"Title")+")":"")));
+  let sel=null;if(docs.length>1){sel=document.createElement("select");docs.forEach((p,i)=>{const o=document.createElement("option");o.value=i;o.textContent=p.name;if(p===doc)o.selected=true;sel.appendChild(o);});const l=el("label","chk","Word file ");l.appendChild(sel);panel.appendChild(l);}
+  panel.appendChild(el("p","muted small","Pictures are shown in the order they appear in the document, with the figure caption or question they sit under."));
+  const grid=el("div","slidegrid");panel.appendChild(grid);
+  const wl=el("label","chk");const wc=document.createElement("input");wc.type="checkbox";wl.appendChild(wc);wl.appendChild(document.createTextNode(" Use the whole picture. Word shows only part of this one; tick to include the rest"));panel.appendChild(wl);
+  const syncWhole=()=>{const p=doc.pics.find(x=>x.n===chosen);const can=!!(p&&p.img.full);wl.hidden=!can;wc.checked=can&&whole;};wc.onchange=()=>{whole=wc.checked;};
+  const altL=el("label",null,"Alt text: what the picture shows and why it matters (required)");const alt=document.createElement("input");alt.type="text";alt.value=g(r,"Alt text");panel.appendChild(altL);panel.appendChild(alt);
+  const msg=el("p","errs");panel.appendChild(msg);
+  const row=el("div","row");const use=el("button","primary","Use this picture"),none=el("button",null,"No image"),cancel=el("button",null,"Cancel");[use,none,cancel].forEach(b=>{b.type="button";row.appendChild(b);});panel.appendChild(row);
+  const close=()=>ov.remove();cancel.onclick=close;ov.onclick=e=>{if(e.target===ov)close();};
+  none.onclick=()=>{close();setRowImage(idx,"","");};
+  use.onclick=()=>{if(!chosen){msg.textContent="Click a picture first.";return;}if(!alt.value.trim()){msg.textContent="Add alt text so students using a screen reader know what the picture shows.";alt.focus();return;}close();const p=doc.pics.find(x=>x.n===chosen);setRowImage(idx,doc.name+"#picture "+chosen+(whole&&p&&p.img.full?" whole":""),alt.value.trim());};
+  function fill(){grid.innerHTML="";if(!doc.pics.length){msg.textContent="No pictures were found in this Word file.";return;}
+    doc.pics.forEach(p=>{const b=el("button","slidepick pic"+(p.n===chosen?" on":""));b.type="button";const im=document.createElement("img");im.alt="Picture "+p.n;im.src=thumbUrl(p.img);b.appendChild(im);
+      b.appendChild(el("span",null,"Picture "+p.n+(p.fig!==null?" · Figure "+p.fig:p.q!==null?" · near Q"+p.q:"")));
+      b.title=(p.fig!==null?"Figure "+p.fig+(p.cap?": "+p.cap:""):"")+" ("+p.img.w+"×"+p.img.h+")";
+      b.onclick=()=>{if(chosen!==p.n)whole=false;chosen=p.n;grid.querySelectorAll(".slidepick").forEach(x=>x.classList.remove("on"));b.classList.add("on");syncWhole();};grid.appendChild(b);});syncWhole();}
+  if(sel)sel.onchange=()=>{doc=docs[+sel.value];chosen=0;fill();};
+  document.body.appendChild(ov);fill();
+}
+function addDocButton(box,idx,r){if(!Object.keys(DOCS).length)return;
+  const b=el("button","small",docRef(imgName(r))&&docImage(docRef(imgName(r)))?"Change picture":"Choose a picture from the Word file");b.type="button";b.style.marginTop="6px";b.style.marginLeft="6px";b.style.padding="4px 10px";b.onclick=()=>openDocPicker(idx,r);box.appendChild(b);}
+function addPickers(box,idx,r){addSlideButton(box,idx,r);addDocButton(box,idx,r);}
+function findImage(name){const dr=docRef(name);if(dr)return docImage(dr);const pr=pdfRef(name);if(pr)return slideImage(pr);const k=imgKey(name);if(!k)return null;if(IMAGES[k])return IMAGES[k];const s=stripExt(k);for(const key in IMAGES){if(stripExt(key)===s)return IMAGES[key];}return null;}
 const imgName=r=>g(r,"Image");
 const imgAlt=r=>g(r,"Alt text")||g(r,"Alt");
 function mediaCollector(){
@@ -551,6 +670,16 @@ function h5pImage(img,alt,media){
 function fitBox(img,x,y,w,h){const a=(img.w||4)/(img.h||3);let bw=w,bh=h;if((w*16)/(h*9)>a){bw=a*h*9/16;}else{bh=w*16/(9*a);}return [x+(w-bw)/2,y+(h-bh)/2,bw,bh];}
 /* Preview line and warnings for a row's image */
 function imgNotes(r){const n=imgName(r);if(!n)return {line:null,warns:[]};
+  const dr=docRef(n);
+  if(dr){const res=resolveDoc(dr),w=[],lab=refLabel(dr);const wf=dr.base?"'"+n.replace(/\s*#.*$/,"").replace(/\s*(?:figure|fig\.?|question|q|picture|pic|image)\s*\d+\s*$/i,"").trim()+"'":"the Word file";let txt,ok=false;
+    if(!res.doc){txt=lab+" of "+wf+" (Word file not added yet)";w.push(lab+" needs "+wf+". Add the Word file under Images, or the activity is built without it");}
+    else if(!res.pic){txt=lab+" of "+res.doc.name+" (not found)";w.push(dr.kind==="pic"?res.doc.name+" has "+res.doc.pics.length+" pictures, so picture "+dr.n+" is left out. Use Choose a picture":"No picture sits under "+lab+" in "+res.doc.name+". Use Choose a picture to pick one, or the activity is built without it");}
+    else{ok=true;const p=res.pic,im=docImage(dr);txt=lab+" of "+res.doc.name+(dr.kind!=="pic"?" → picture "+p.n:"")+" ("+im.w+"×"+im.h+(p.img.full&&!dr.full?", cropped as in Word":"")+")";
+      if(res.cands.length>1)w.push(lab+" is made of "+res.cands.length+" pictures in the Word file. The "+(dr.kind==="q"?"first":"largest")+" one is used; check it is right, or use Change picture");
+      if(dr.base&&!res.exact)w.push("No Word file called "+wf+" was added, so the picture is taken from "+res.doc.name+". Check it is the right file");
+      else if(!dr.base&&Object.keys(DOCS).length>1)w.push("Several Word files were added, so the picture is taken from "+res.doc.name+". Use Change picture if it should come from another one");}
+    if(!imgAlt(r))w.push(lab+" has no alt text. Add a short description in the Alt text column");
+    return {line:{text:"🖼 "+txt+(imgAlt(r)?" · alt: "+imgAlt(r):""),ok},warns:w};}
   const pr=pdfRef(n);
   if(pr){const img=findImage(n),s=slideState(pr),w=[];let txt;
     const lec=pr.base?"'"+n.replace(/\s*(#|,|slide|page).*$/i,"")+"'":"the lecture";
@@ -605,7 +734,7 @@ function checkBook(recs){
   return recs.map((r,i)=>{
     const e=[],t=lt(r);
     if(t==="SLIDE"){e.push("SLIDE rows make a Course Presentation, but this CSV also has CHAPTER rows. Use one or the other");return e;}
-    if(!LTYPES.includes(t)){e.push("Type '"+g(r,"Type")+"' must be one of "+LTYPES.join(", "));return e;}
+    if(!LTYPES.includes(t)){e.push(unknownType(g(r,"Type"),LTYPES));return e;}
     if(t==="CHAPTER"&&!g(r,"Title"))e.push("A CHAPTER row needs a Title");
     if(t==="TEXT"&&!g(r,"Text"))e.push("Text is empty");
     if(t==="ACCORDION"){if(!g(r,"Title"))e.push("An ACCORDION row needs a Title (the panel heading students click)");if(!g(r,"Text"))e.push("An ACCORDION row needs Text (what the panel shows when opened)");}
@@ -787,7 +916,7 @@ function refreshSlides(t){
         if(g(r,"General feedback")){const d=el("div","gfb");d.appendChild(el("strong",null,"General feedback: "));d.appendChild(document.createTextNode(g(r,"General feedback")));box.appendChild(d);}}}
     const e=[],w=[];s.rows.forEach(i=>{errs[i].forEach(x=>e.push("Row "+(i+2)+": "+x));warns[i].forEach(x=>w.push("Row "+(i+2)+": "+x));});
     if(s.img)addImgLine(box,s.img.r).forEach(x=>w.push("Row "+(s.img.i+2)+": "+x));
-    {const ii=s.img?s.img.i:s.rows[0];addSlideButton(box,ii,recs[ii]);}
+    {const ii=s.img?s.img.i:s.rows[0];addPickers(box,ii,recs[ii]);}
     if(e.length)box.classList.add("err");errBox(box,e);errBox(box,w,"warn");pv.appendChild(box);
   });
   const nErr=errs.filter(e=>e.length).length;
@@ -808,7 +937,7 @@ function analyseBranch(recs){
   recs.forEach((r,i)=>{
     const t=bt(r),id=g(r,"ID");
     if(!id)errs[i].push("ID is empty");else if(idx[id.toUpperCase()]!==i)errs[i].push("ID '"+id+"' is used more than once");
-    if(!BTYPES.includes(t)){errs[i].push("Type '"+g(r,"Type")+"' must be INFO, DECISION or END");return;}
+    if(!BTYPES.includes(t)){errs[i].push(unknownType(g(r,"Type"),BTYPES));return;}
     if(t==="INFO"){if(!g(r,"Text"))errs[i].push("Text is empty");const j=target(g(r,"Next"),i,"Next");if(j!==null)edges[i].push(j);}
     if(t==="DECISION"){if(!g(r,"Text"))errs[i].push("The question (Text) is empty");const cs=choicesOf(r);if(cs.length<2)errs[i].push("A decision needs at least two choices");
       cs.forEach(c=>{const j=target(c.go,i,"Go to "+c.L);if(j!==null)edges[i].push(j);if(c.score&&!isNum(c.score))errs[i].push("Score "+c.L+" must be a number");});}
@@ -875,6 +1004,9 @@ function buildBranch(recs,title,description,opts){
 /* UI */
 const $=id=>document.getElementById(id);
 let current=null;
+/* v13: say plainly when a type is unknown, and that the page may be out of date */
+const CONVERTER_VERSION=13;
+function unknownType(t,list){return t?"'"+t+"' is not a row type this converter (version "+CONVERTER_VERSION+") knows. It accepts "+list.join(", ")+". If the agent produced this row, refresh this page (Ctrl+F5, or Cmd+Shift+R on a Mac) in case you have an older copy open; if it still appears, ask the agent to use one of those types":"The Type column is empty. Use one of "+list.join(", ");}
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
 
 function refresh(){
@@ -925,12 +1057,14 @@ $("file").onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileR
 $("clearBtn").onclick=()=>{$("csv").value="";refresh();};
 function imgSummary(recs){
   const names=[...new Set(recs.map(imgName).filter(Boolean))];let out="";
-  const slides=names.filter(n=>pdfRef(n));
+  const slides=names.filter(n=>!docRef(n)&&pdfRef(n));
   if(slides.length){const ready=slides.filter(n=>findImage(n)).length;out+="Slides: "+ready+" of "+slides.length+" ready"+(slidesPending()?" (preparing\u2026)":"")+" \u00b7 ";}
-  const named=new Set(names.filter(n=>!pdfRef(n)).map(imgKey));
+  const dref=names.filter(n=>docRef(n));
+  if(dref.length){const ready=dref.filter(n=>findImage(n)).length;out+="Word pictures: "+ready+" of "+dref.length+" matched \u00b7 ";}
+  const named=new Set(names.filter(n=>!pdfRef(n)&&!docRef(n)).map(imgKey));
   if(named.size){const found=[...named].filter(n=>findImage(n)).length;out+="Images: "+found+" of "+named.size+" added \u00b7 ";}
   return out;}
-function showImgList(){const k=Object.keys(IMAGES),p=Object.values(PDFS);const items=k.map(x=>IMAGES[x].name+" ("+IMAGES[x].w+"×"+IMAGES[x].h+")").concat(p.map(x=>x.name+" (lecture PDF)"));$("imgList").textContent=items.length?"Added: "+items.join(", "):"No images added.";}
+function showImgList(){const k=Object.keys(IMAGES),p=Object.values(PDFS),d=Object.values(DOCS);const items=k.map(x=>IMAGES[x].name+" ("+IMAGES[x].w+"×"+IMAGES[x].h+")").concat(p.map(x=>x.name+" (lecture PDF)")).concat(d.map(x=>x.name+" (Word file: "+x.pics.length+" picture"+(x.pics.length===1?"":"s")+(x.skipped.small?", "+x.skipped.small+" small logo"+(x.skipped.small===1?"":"s")+" or icon"+(x.skipped.small===1?"":"s")+" left out":"")+(x.skipped.format?", "+x.skipped.format+" drawing"+(x.skipped.format===1?"":"s")+" in a format H5P cannot show left out":"")+")"));$("imgList").textContent=items.length?"Added: "+items.join(", "):"No images added.";}
 function readImage(f){return new Promise(res=>{const fr=new FileReader();fr.onload=()=>{const bytes=new Uint8Array(fr.result);const url=URL.createObjectURL(f);const im=new Image();
   const done=(w,h)=>{URL.revokeObjectURL(url);let mime=f.type;if(!mime){const e=f.name.toLowerCase().split(".").pop();mime={png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",svg:"image/svg+xml"}[e]||"image/png";}res({key:imgKey(f.name),name:f.name,bytes,mime,w:w||800,h:h||600});};
   im.onload=()=>done(im.naturalWidth,im.naturalHeight);im.onerror=()=>done(0,0);im.src=url;};fr.readAsArrayBuffer(f);});}
@@ -938,8 +1072,13 @@ $("imgBtn").onclick=()=>$("imgs").click();
 $("imgs").onchange=async e=>{const all=[...e.target.files];
   for(const f of all.filter(f=>/\.pdf$/i.test(f.name))){const base=f.name.replace(/^.*[\\/]/,"").replace(/\.pdf$/i,"").trim().toLowerCase();PDFS[base]={name:f.name,base,bytes:new Uint8Array(await f.arrayBuffer())};Object.keys(RENDERED).filter(k=>k.startsWith(base+"#")).forEach(k=>delete RENDERED[k]);loadPdfJs().catch(()=>{});}
   for(const f of all.filter(f=>/\.(png|jpe?g|gif|svg)$/i.test(f.name))){const img=await readImage(f);IMAGES[img.key]=img;}
-  e.target.value="";showImgList();refresh();};
-$("imgClear").onclick=()=>{Object.keys(IMAGES).forEach(k=>delete IMAGES[k]);Object.keys(PDFS).forEach(k=>delete PDFS[k]);Object.keys(RENDERED).forEach(k=>delete RENDERED[k]);showImgList();refresh();};
+  const bad=[];
+  for(const f of all.filter(f=>/\.docx?$/i.test(f.name))){
+    if(/\.doc$/i.test(f.name)){bad.push(f.name+": this is an older Word format. Open it in Word, choose Save As > Word Document (.docx), then add it again");continue;}
+    $("imgList").textContent="Reading "+f.name+"\u2026";
+    try{const d=await readDocx(f);DOCS[d.base]=d;}catch(err){bad.push(f.name+": "+(err&&err.message?err.message:err));}}
+  e.target.value="";showImgList();if(bad.length)$("imgList").textContent+=" Could not read "+bad.join(". ")+".";refresh();};
+$("imgClear").onclick=()=>{Object.keys(DOCS).forEach(k=>delete DOCS[k]);Object.keys(IMAGES).forEach(k=>delete IMAGES[k]);Object.keys(PDFS).forEach(k=>delete PDFS[k]);Object.keys(RENDERED).forEach(k=>delete RENDERED[k]);showImgList();refresh();};
 
 function errBox(box,list,cls){if(!list.length)return;const d=el("div",cls||"errs");list.forEach(e=>d.appendChild(el("div",null,(cls==="warn"?"\u26a0 ":"\u26d4 ")+e)));box.appendChild(d);}
 /* v11: name the rows to fix, in a form that can be pasted straight to the agent */
@@ -970,7 +1109,7 @@ function refreshBook(t){
       if(ty==="TF")["True","False"].forEach(v=>box.appendChild(el("div","opt"+(c[0]===v.toUpperCase()?" correct":""),v)));
       else [...LETTERS].forEach(L=>{const o=g(r,"Option "+L);if(!o)return;const d=el("div","opt"+(c.includes(L)?" correct":""),L+". "+o);if(g(r,"Feedback "+L))d.appendChild(el("div","fb",g(r,"Feedback "+L)));box.appendChild(d);});
       if(g(r,"General feedback")){const d=el("div","gfb");d.appendChild(el("strong",null,"General feedback: "));d.appendChild(document.createTextNode(g(r,"General feedback")));box.appendChild(d);}}
-    const iw=(ty==="ACCORDION"||ty==="TABLE"?[]:addImgLine(box,r));if(["CHAPTER","TEXT","CARDS"].includes(ty))addSlideButton(box,i,r);
+    const iw=(ty==="ACCORDION"||ty==="TABLE"?[]:addImgLine(box,r));if(["CHAPTER","TEXT","CARDS"].includes(ty))addSlideButton(box,i,r);if(["CHAPTER","TEXT","CARDS","MC","MA","TF","DRAG"].includes(ty))addDocButton(box,i,r);
     errBox(box,errs[i]);errBox(box,iw.concat(warns[i]),"warn");pv.appendChild(box);
   });
   const nErr=errs.filter(e=>e.length).length;
@@ -989,7 +1128,7 @@ function refreshBranch(t){
     if(ty==="INFO")box.appendChild(el("div","arrow","\u2192 "+nameOf(g(r,"Next"))));
     if(ty==="DECISION")choicesOf(r).forEach(c=>{const o=el("div","opt",c.L+". "+c.text+"  \u2192 "+nameOf(c.go)+(c.score?"  ("+c.score+" pts)":""));if(c.fb)o.appendChild(el("div","fb",c.fb));box.appendChild(o);});
     if(ty==="END")box.appendChild(el("div","arrow","Ending"+(g(r,"Score")?" \u00b7 score "+g(r,"Score"):"")));
-    let iw=[];if(ty==="DECISION"){if(imgName(r))iw.push("Images cannot go on a DECISION row, so this one is left out. Put it on the INFO row before the decision");}else{iw=addImgLine(box,r);addSlideButton(box,i,r);}
+    let iw=[];if(ty==="DECISION"){if(imgName(r))iw.push("Images cannot go on a DECISION row, so this one is left out. Put it on the INFO row before the decision");}else{iw=addImgLine(box,r);addPickers(box,i,r);}
     errBox(box,A.errs[i]);errBox(box,A.warns[i].concat(iw),"warn");pv.appendChild(box);
   });
   const hints=[];
@@ -1006,7 +1145,7 @@ function refreshBranch(t){
   const nErr=A.errs.filter(e=>e.length).length;
   $("summary").textContent=imgSummary(recs)+"Branching Scenario: "+D.nodes+" node"+(D.nodes===1?"":"s")+" \u00b7 "+D.decisions+" decision"+(D.decisions===1?"":"s")+" \u00b7 "+D.endings+" ending"+(D.endings===1?"":"s");
   const mMsg=A.missing.length?"Some rows link to nodes that are not in the box yet: "+A.missing.join(", ")+". If the agent exported in batches, paste the next batch below this one; these messages clear once every node is in. If there are no more batches, ask the agent to add those nodes."+(nErr>A.errs.filter(e=>e.length&&e.every(x=>x.includes("not in the box yet"))).length?" Other rows also need fixing; see the messages in the preview.":""):"";
-  if(finishStatus(nErr,recs.length,t.dups,"All "+recs.length+" nodes connect properly.",mMsg))$("branchBtn").disabled=false;
+  if(finishStatus(nErr,recs.length,t.dups,"All "+recs.length+" nodes connect properly.",mMsg||rowsToFix(A.errs)))$("branchBtn").disabled=false;
 }
 function saveH5P(files,title){if(slidesPending()){alert("Slides are still being prepared. Wait a moment, then download again.");return;}const blob=zip(files);const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(title.replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,50)||"h5p")+".h5p";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
 $("bookBtn").onclick=()=>{const title=$("title").value.trim();const t=toRecords(parseCSV($("csv").value));saveH5P(buildBook(t.recs,title,$("desc").value.trim(),{solutions:$("bookSolutions").checked,shuffle:true,pass:50,colour:$("bookColour").value,cover:COVER}).files,title);};
