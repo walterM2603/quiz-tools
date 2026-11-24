@@ -55,6 +55,22 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 .imgline.miss{color:var(--bad)}
 .thumb{display:block;max-height:110px;max-width:220px;margin-top:6px;border:1px solid var(--line);border-radius:6px;background:#fff}
 .slidepick.pic img{aspect-ratio:4/3}
+.lblwrap{position:relative;display:inline-block;margin-top:6px;background:#fff;border:1px solid var(--line);border-radius:6px;line-height:0}
+.lblwrap img{display:block;max-width:min(520px,100%);max-height:320px}
+.lblchip{position:absolute;transform:translate(-50%,-50%);box-sizing:border-box;background:rgba(255,255,255,.85);color:#1d2430;border:2px dashed #f59e0b;border-radius:4px;padding:0 4px;font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.lblchip.sel{background:#fef3c7}
+.placer{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:14px;align-items:start;margin:10px 0}
+.placer .lblwrap{cursor:crosshair}
+.placer .lblwrap img{max-width:100%;max-height:68vh}
+.lbllist{display:flex;flex-direction:column;gap:6px;max-height:68vh;overflow:auto}
+.lbllist button{text-align:left;padding:6px 10px;font-size:14px}
+.lbllist button.on{background:#fef3c7;border-color:#f59e0b;color:#1d2430}
+.lbllist button.done::after{content:" \2713";color:var(--ok)}
+.fillprev input{width:auto}
+.fillprev div{margin:4px 0}
+.fillprev .blank{display:inline-block;min-width:60px;border-bottom:2px solid var(--accent);padding:0 4px;color:var(--accent);font-weight:600}
+.fillprev table{border-collapse:collapse;margin:6px 0}.fillprev td,.fillprev th{border:1px solid var(--line);padding:4px 8px}
+@media (max-width:700px){.placer{grid-template-columns:1fr}}
 .thumb.crop{cursor:zoom-in}
 .cropov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
 .croppanel{background:var(--card);color:var(--ink);border-radius:10px;padding:16px;max-width:min(1100px,96vw);max-height:96vh;overflow:auto}
@@ -85,7 +101,7 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 <main>
 <h1>Quiz and H5P Converter</h1>
 <p class="muted">Turns the CSV from the course agents into a Canvas quiz (.zip), or an H5P Question Set, Interactive Book, Course Presentation or Branching Scenario (.h5p), with all feedback included. The page works out which from the header row. Images named in the CSV can be added too. Everything happens in this page; nothing is uploaded anywhere.</p>
-<p class="muted small">Version 13 · 23 November 2026</p>
+<p class="muted small">Version 15 · 24 November 2026</p>
 
 <div class="card">
 <h2>1. Title and description</h2>
@@ -98,7 +114,7 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 <div class="card">
 <h2>2. Paste the CSV</h2>
 <p>Paste the whole CSV block from the agent, including the header row, or open a saved .csv file. Quiz CSVs start <code>Pool,Pick,Type</code>. Interactive Book and Course Presentation CSVs start <code>Type,Title,Text</code> (CHAPTER rows make a book; SLIDE rows make a presentation). Branching Scenario CSVs start <code>ID,Type,Title,Text,Next</code>. If the agent exported in batches, paste each batch below the last; repeated header rows are ignored.</p>
-<p class="muted small"><strong>Formatting inside Text:</strong> <code>||</code> starts a new paragraph, <code>- </code> starts a bullet, <code>**bold**</code>, <code>## </code> starts a heading, and <code>---</code> adds a separator line. Interactive Books also take ACCORDION rows (collapsible panels), CARDS rows (Dialog Cards that students turn over) and TABLE rows (rows split by <code>||</code>, cells by <code>|</code>, first row as headings).</p>
+<p class="muted small"><strong>Formatting inside Text:</strong> <code>||</code> starts a new paragraph, <code>- </code> starts a bullet, <code>**bold**</code>, <code>## </code> starts a heading, and <code>---</code> adds a separator line. Interactive Books also take ACCORDION rows (collapsible panels), CARDS rows (Dialog Cards that students turn over) and TABLE rows (rows split by <code>||</code>, cells by <code>|</code>, first row as headings). <strong>LABEL</strong> rows make a Drag and Drop: students drag labels onto a picture; you click where each label belongs with <strong>Place labels</strong>. <strong>FILL</strong> rows make Fill in the Blanks: students type the words marked with asterisks, for example <code>The *axon* carries the impulse</code>, with other accepted answers after a slash (<code>*neurone/neuron*</code>).</p>
 <textarea id="csv" spellcheck="false" placeholder="Pool,Pick,Type,Points,Question,Correct,..."></textarea>
 <div class="row">
 <button id="openBtn" type="button">Open a .csv file</button>
@@ -210,7 +226,19 @@ function toRecords(rows){
   if(!head.includes("type")||(mode==="quiz"&&!head.includes("question")))
     return {err:"The first row must be the header row from the agent (for example Pool,Pick,Type,Points,Question,... or Type,Title,Text,... or ID,Type,Title,Text,Next,...). Copy the whole block, including the first line."};
   const hsig=head.join("|");
-  const all=rows.slice(1).filter(r=>r.map(h=>h.trim().toLowerCase()).join("|")!==hsig).map(r=>{const o={};head.forEach((h,i)=>o[h]=(r[i]||"").trim());return o;});
+  const ii=head.indexOf("image");
+  /* v14: a row with too many or too few fields shifts every later column. Where the row ends with an image (and alt text),
+     line those up with the Image and Alt text columns and drop or add empty fields before them. */
+  const imgLike=v=>/\.(docx?|pdf|pptx?|key)\s*(#|,)|^\s*(figure|fig\.?|question|q|picture|pic)\s*\d+\s*$|\.(png|jpe?g|gif|svg)\s*$/i.test(String(v||""));
+  const fixRow=r=>{if(r.length===head.length)return {r};
+    let k=-1;if(ii>=0){for(let j=r.length-1;j>=Math.max(0,r.length-2);j--){if(imgLike(r[j])){k=j;break;}}}
+    if(k>=0){let body=r.slice(0,k),tail=r.slice(k);while(body.length>ii&&!String(body[body.length-1]).trim())body.pop();
+      if(body.length===ii||body.length<ii){while(body.length<ii)body.push("");const nr=body.concat(tail);while(nr.length<head.length)nr.push("");return {r:nr.slice(0,head.length),fix:"realigned",n:r.length};}}
+    if(r.length>head.length&&r.slice(head.length).every(v=>!String(v).trim()))return {r:r.slice(0,head.length)};
+    if(r.length<head.length){const tail=r.slice(-2);if(ii<0||!tail.some(v=>String(v).trim()))return {r:r.concat(Array(head.length-r.length).fill("")),fix:"padded",n:r.length};}
+    return {r,fix:"bad",n:r.length};};
+  const all=rows.slice(1).filter(r=>r.map(h=>h.trim().toLowerCase()).join("|")!==hsig).map(r0=>{const x=fixRow(r0),r=x.r;const o={};head.forEach((h,i)=>o[h]=(r[i]||"").trim());
+    if(x.fix)Object.defineProperty(o,"__fix",{value:{kind:x.fix,n:x.n,want:head.length},enumerable:false});return o;});
   const seenKeys=new Set(),recs=[];let dups=0;
   all.forEach(o=>{const k=Object.values(o).join("\u0001");if(seenKeys.has(k)){dups++;return;}seenKeys.add(k);recs.push(o);});
   return {recs,dups,mode};
@@ -492,12 +520,14 @@ async function renderSlide(p,n,k){
   refresh();
 }
 /* v12: let staff choose a slide for a row; the choice is written back into the CSV */
-function setRowImage(idx,value,alt){
+function setRowImage(idx,value,alt){setRowFields(idx,{"image":value,"alt text":alt});}
+/* v14: write any fields of one row back into the CSV box */
+function setRowFields(idx,vals){
   const rows=parseCSV($("csv").value);const t=toRecords(rows);if(t.err||!t.recs[idx])return;
   const head=rows[0].map(h=>h.trim()),low=head.map(h=>h.toLowerCase());
   if(!low.includes("image")){head.push("Image");low.push("image");}
   if(!low.includes("alt text")){head.push("Alt text");low.push("alt text");}
-  const r=t.recs[idx];r["image"]=value;r["alt text"]=alt;
+  const r=t.recs[idx];Object.keys(vals).forEach(k=>{r[k]=vals[k];});
   const q=v=>'"'+String(v||"").replace(/"/g,'""')+'"';
   $("csv").value=[head.map(q).join(",")].concat(t.recs.map(o=>low.map(h=>q(o[h])).join(","))).join("\n");
   refresh();
@@ -617,7 +647,7 @@ function resolveDoc(d){
   const f=findDoc(d.base);if(!f)return {doc:null};const doc=f.doc;let cands=[];
   if(d.kind==="pic")cands=doc.pics.filter(p=>p.n===d.n);
   else if(d.kind==="fig")cands=doc.pics.filter(p=>p.fig===d.n);
-  else cands=doc.pics.filter(p=>p.q===d.n&&p.fig===null).concat(doc.pics.filter(p=>p.q===d.n&&p.fig!==null));
+  else cands=doc.pics.filter(p=>p.q===d.n);
   /* A figure uses its largest picture; a question uses its first picture (in document order) */
   const pic=(d.kind==="fig"?cands.slice().sort((a,b)=>(b.img.w*b.img.h)-(a.img.w*a.img.h)):cands)[0]||null;
   return {doc,pic,cands,exact:f.exact};
@@ -726,14 +756,141 @@ function addImgLine(box,r){const n=imgNotes(r);if(n.line){box.appendChild(el("di
     if(img.slide){t.classList.add("crop");t.title="Click to crop";t.onclick=()=>openCrop(img.rk);box.appendChild(el("div","muted small",(img.cropped?"Cropped. ":"")+"Click the slide to crop it to just the figure."));}}}
   return n.warns;}
 
+/* ---------- v14: LABEL rows (H5P Drag and Drop onto a picture) and FILL rows (H5P Fill in the Blanks) ---------- */
+/* Text of a LABEL row: labels separated by ||. A placed label ends with "@x,y" (percent across and down the picture).
+   A label starting with ~ is an extra label with no spot (a distractor). */
+function parseLabels(t){return String(t||"").split(/\|\|?|\r?\n/).map(x=>x.trim()).filter(Boolean).map(p=>{let dist=false;if(/^~/.test(p)){dist=true;p=p.replace(/^~\s*/,"");}
+  const m=p.match(/\s*@\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);let pos=null;if(m){pos=[Math.max(0,Math.min(100,+m[1])),Math.max(0,Math.min(100,+m[2]))];p=p.slice(0,m.index);}
+  return {text:p.trim(),dist,pos:dist?null:pos};}).filter(x=>x.text);}
+function labelsToText(items){return items.map(x=>(x.dist?"~":"")+x.text+(x.pos?" @"+x.pos[0].toFixed(1)+","+x.pos[1].toFixed(1):"")).join("||");}
+/* Same sizes the Drag and Drop uses: drop zone width and height as a fraction of the picture */
+/* Label size in em: long labels wrap onto two lines rather than making every drop zone wide */
+function labelSize(items){const maxC=Math.max(1,...items.map(x=>x.text.length));const want=0.47*maxC+1.2;return want>9.5?{w:9.5,h:2.9}:{w:Math.max(4.5,want),h:1.9};}
+/* Wide pictures, or pictures with many labels, use the full width with the labels underneath */
+const labelsBelow=(img,items)=>img.w/img.h>=1.3||items.length>6;
+function labelGeom(img,items){const W=800,BW=250,GAP=20,M=12,EM=16;const L=labelSize(items);
+  const lw=L.w*EM,lh=L.h*EM;let pw,ph;
+  if(labelsBelow(img,items)){const sc=Math.min((W-2*M)/img.w,520/img.h,1.6);pw=img.w*sc;ph=img.h*sc;}else{const sc=Math.min((W-BW-GAP-M)/img.w,600/img.h,1.6);pw=img.w*sc;ph=img.h*sc;}
+  return {fw:lw/pw*100,fh:lh/ph*100};}
+function labelOverlaps(img,items){const G=labelGeom(img,items),P=items.filter(x=>!x.dist&&x.pos),out=[];
+  for(let i=0;i<P.length;i++)for(let j=i+1;j<P.length;j++){if(Math.abs(P[i].pos[0]-P[j].pos[0])<G.fw*0.9&&Math.abs(P[i].pos[1]-P[j].pos[1])<G.fh*0.9)out.push(P[i].text+" and "+P[j].text);}
+  return out;}
+function drawChips(wrap,items,sel,img){wrap.querySelectorAll(".lblchip").forEach(c=>c.remove());const G=img?labelGeom(img,items):null;
+  items.forEach((x,k)=>{if(!x.pos)return;const c=el("div","lblchip"+(k===sel?" sel":""),x.text);c.style.left=x.pos[0]+"%";c.style.top=x.pos[1]+"%";
+    if(G){c.style.width=G.fw+"%";c.style.height=G.fh+"%";}wrap.appendChild(c);});}
+function addLabelPreview(box,idx,r){
+  const n=imgNotes(r);if(n.line)box.appendChild(el("div","imgline "+(n.line.ok?"ok":"miss"),n.line.text));
+  const items=parseLabels(g(r,"Text")),img=findImage(imgName(r));
+  if(img){const w=el("div","lblwrap");const im=document.createElement("img");im.src=thumbUrl(img);im.alt="";w.appendChild(im);box.appendChild(w);drawChips(w,items,-1,img);}
+  const real=items.filter(x=>!x.dist),extra=items.filter(x=>x.dist);
+  box.appendChild(el("div","muted small","Labels: "+real.map(x=>x.text+(x.pos?"":" (not placed)")).join(", ")+(extra.length?" · extra labels with no spot: "+extra.map(x=>x.text).join(", "):"")));
+  if(img){const b=el("button",real.some(x=>!x.pos)?"primary":"",real.some(x=>x.pos)?"Move labels":"Place labels");b.type="button";b.style.marginTop="6px";b.style.padding="4px 10px";b.onclick=()=>openLabelPlacer(idx);box.appendChild(b);}
+}
+function openLabelPlacer(idx){
+  const t=toRecords(parseCSV($("csv").value));if(t.err||!t.recs[idx])return;const r=t.recs[idx];
+  const img=findImage(imgName(r));if(!img)return;const items=parseLabels(g(r,"Text"));
+  const firstFree=()=>items.findIndex(x=>!x.dist&&!x.pos);let sel=firstFree();if(sel<0)sel=items.findIndex(x=>!x.dist);
+  const ov=el("div","cropov"),panel=el("div","croppanel");panel.style.width="min(1100px,96vw)";ov.appendChild(panel);
+  panel.appendChild(el("strong",null,"Place the labels for row "+(idx+2)+(g(r,"Title")?" ("+g(r,"Title")+")":"")));
+  panel.appendChild(el("p","muted small","Choose a label on the right, then click the spot on the picture where students should drop it. The next label is chosen for you. To move a label, choose it again and click its new spot."));
+  const grid=el("div","placer");const wrap=el("div","lblwrap");const im=document.createElement("img");im.src=thumbUrl(img);im.alt="";im.draggable=false;wrap.appendChild(im);grid.appendChild(wrap);
+  const list=el("div","lbllist");grid.appendChild(list);panel.appendChild(grid);
+  const msg=el("p","muted small");panel.appendChild(msg);
+  const row=el("div","row");const save=el("button","primary","Save positions"),clear=el("button",null,"Clear all"),cancel=el("button",null,"Cancel");[save,clear,cancel].forEach(b=>{b.type="button";row.appendChild(b);});panel.appendChild(row);
+  function redraw(){list.innerHTML="";items.forEach((x,k)=>{const b=el("button",(k===sel?"on ":"")+(x.pos?"done":""),x.dist?x.text+" (extra, no spot)":x.text);b.type="button";
+      if(x.dist)b.disabled=true;else b.onclick=()=>{sel=k;redraw();};list.appendChild(b);});
+    drawChips(wrap,items,sel,img);const left=items.filter(x=>!x.dist&&!x.pos).length;const ov2=labelOverlaps(img,items);
+    msg.textContent=(ov2.length?"These drop zones overlap, so students could drop a label in the wrong one: "+ov2.join("; ")+". Move one of each pair apart. ":"")+(left?left+" label"+(left>1?"s":"")+" still to place."+(sel>=0&&!items[sel].dist?" Now click the spot for: "+items[sel].text:""):"All labels placed. Check them, then Save positions.");}
+  wrap.onclick=e=>{if(sel<0||items[sel].dist)return;const b=im.getBoundingClientRect();
+    const x=(e.clientX-b.left)/b.width*100,y=(e.clientY-b.top)/b.height*100;if(x<0||x>100||y<0||y>100)return;
+    items[sel].pos=[x,y];const nx=firstFree();if(nx>=0)sel=nx;redraw();};
+  const close=()=>ov.remove();cancel.onclick=close;ov.onclick=e=>{if(e.target===ov)close();};
+  clear.onclick=()=>{items.forEach(x=>{x.pos=null;});sel=firstFree();redraw();};
+  save.onclick=()=>{close();setRowFields(idx,{"text":labelsToText(items)});};
+  document.body.appendChild(ov);redraw();
+}
+function shuffled(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+/* Build an H5P Drag and Drop: the picture sits on the left as a fixed element, the labels start in a column on the right,
+   and each drop zone is centred on the spot staff clicked. Sizes follow H5P: x and y in %, width and height in em (16 px at the design width). */
+function bookLabel(r,media){
+  const img=findImage(imgName(r));if(!img)return null;
+  const items=parseLabels(g(r,"Text")),real=items.filter(x=>!x.dist&&x.pos),extra=items.filter(x=>x.dist);if(real.length<1)return null;
+  const W=800,BW=250,GAP=20,M=12,EM=16;
+  const all=real.concat(extra);const L=labelSize(items);
+  const lwEm=L.w,lhEm=L.h,lw=lwEm*EM,lh=lhEm*EM,step=lh+8;
+  /* Wide pictures get the labels in rows underneath; tall pictures get a column of labels on the right */
+  const below=labelsBelow(img,items);let pw,ph,px0,py0,H,slotXY;
+  if(below){const sc=Math.min((W-2*M)/img.w,520/img.h,1.6);pw=img.w*sc;ph=img.h*sc;px0=(W-pw)/2;py0=M;
+    const cols=Math.max(1,Math.floor((W-2*M+10)/(lw+10))),y0=py0+ph+18;H=Math.round(y0+Math.ceil(all.length/cols)*step+M);
+    slotXY=k=>[M+(k%cols)*(lw+10),y0+Math.floor(k/cols)*step];}
+  else{const PW=W-BW-GAP-M,sc=Math.min(PW/img.w,600/img.h,1.6);pw=img.w*sc;ph=img.h*sc;H=Math.round(Math.max(ph+2*M,all.length*step+2*M,220));px0=M;py0=(H-ph)/2;
+    slotXY=k=>[W-BW+(BW-lw)/2,M+k*step];}
+  const pc=(v,d)=>Math.round(v/d*10000)/100;
+  const zones=real.map((x,j)=>{let zx=px0+x.pos[0]/100*pw-lw/2,zy=py0+x.pos[1]/100*ph-lh/2;zx=Math.max(0,Math.min((below?W:W-BW)-lw,zx));zy=Math.max(0,Math.min((below?py0+ph:H)-lh,zy));
+    return {x:pc(zx,W),y:pc(zy,H),width:lwEm,height:lhEm,correctElements:[],label:"Spot "+(j+1),showLabel:false,backgroundOpacity:0,
+      tipsAndFeedback:{tip:"",feedbackOnCorrect:"",feedbackOnIncorrect:""},single:true,autoAlign:true};});
+  const elements=[{x:pc(px0,W),y:pc(py0,H),width:Math.round(pw/EM*100)/100,height:Math.round(ph/EM*100)/100,dropZones:[],backgroundOpacity:0,multiple:false,
+    type:{library:"H5P.Image 1.1",params:{contentName:"Image",decorative:false,alt:imgAlt(r)||"Diagram to label",title:"",expandImage:"Expand Image",minimizeImage:"Minimize Image",
+      file:{path:media.add(img),mime:img.mime,copyright:{license:"U"},width:img.w,height:img.h}},subContentId:uuid(),metadata:{contentType:"Image",license:"U",title:(imgAlt(r)||"Diagram").slice(0,60)}}}];
+  const zoneIds=zones.map((z,j)=>String(j));
+  shuffled(all.map((x,k)=>k)).forEach((k,slot)=>{const x=all[k];const ei=elements.length;
+    const xy=slotXY(slot);elements.push({x:pc(xy[0],W),y:pc(xy[1],H),width:lwEm,height:lhEm,dropZones:zoneIds.slice(),backgroundOpacity:100,multiple:false,
+      type:{library:"H5P.AdvancedText 1.1",params:{text:"<p>"+xesc(x.text)+"</p>"},subContentId:uuid(),metadata:{contentType:"Text",license:"U",title:x.text.slice(0,60)}}});
+    if(k<real.length)zones[k].correctElements=[String(ei)];});
+  const gen=g(r,"General feedback");
+  const params={scoreShow:"Check",submit:"Submit",tryAgain:"Retry",scoreExplanation:"Correct answers give +1 point. Incorrect answers give -1 point. The lowest possible score is 0.",
+    question:{settings:{size:{width:W,height:H}},task:{elements,dropZones:zones}},
+    overallFeedback:[{from:0,to:100,feedback:gen||""}],
+    behaviour:{enableRetry:true,enableCheckButton:true,singlePoint:false,applyPenalties:false,enableScoreExplanation:false,dropZoneHighlighting:"always",autoAlignSpacing:2,enableFullScreen:true,showScorePoints:true,showTitle:false,dragHandleVisibility:true},
+    localize:{fullscreen:"Fullscreen",exitFullscreen:"Exit fullscreen"},grabbablePrefix:"Grabbable {num} of {total}.",grabbableSuffix:"Placed in dropzone {num}.",dropzonePrefix:"Dropzone {num} of {total}.",noDropzone:"No dropzone.",
+    tipLabel:"Show tip.",tipAvailable:"Tip available",correctAnswer:"Correct answer",wrongAnswer:"Wrong answer",feedbackHeader:"Feedback",scoreBarLabel:"You got :num out of :total points",scoreExplanationButtonLabel:"Show score explanation",
+    a11yCheck:"Check the answers. The responses will be marked as correct, incorrect, or unanswered.",a11yRetry:"Retry the task. Reset all responses and start the task over again."};
+  return {library:"H5P.DragQuestion 1.15",params,metadata:{contentType:"Drag and Drop",license:"U",title:(g(r,"Title")||"Label the diagram").slice(0,60)},subContentId:uuid()};
+}
+/* FILL rows: answers between asterisks; alternatives after /; a TABLE layout when Text uses | between cells and || between rows */
+/* FILL table rows: || between rows and | between cells. If the agent used | everywhere, work out the columns from the headings:
+   the first cell holding an answer (*...*) starts the second row's answers, so the row before it is the headings. */
+function fillTable(t){const s=String(t||"");const parts=s.split("||").map(x=>x.trim()).filter(Boolean);
+  if(parts.length>=2&&parts.every(p=>p.includes("|")))return {rows:parts.filter(p=>!/^[\s:|-]+$/.test(p)).map(p=>p.split("|").map(c=>c.trim()))};
+  if(parts.length===1&&(s.match(/\|/g)||[]).length>3){const cells=s.split("|").map(c=>c.trim());const fs=cells.findIndex(c=>/\*[^*]+\*/.test(c));const cols=fs-1;
+    if(cols>=2&&cells.length%cols===0){const rows=[];for(let i=0;i<cells.length;i+=cols)rows.push(cells.slice(i,i+cols));if(rows.slice(1).every(r=>r.some(c=>/\*[^*]+\*/.test(c))))return {rows,guessed:cols};}}
+  return null;}
+/* One line per question. A table becomes one line per row: "Dendrites: *receive* signals" for two columns,
+   "Olfactory (I): Function *smell* · Sensory/Motor/Both *sensory*" for more. */
+function fillLines(t){const tb=fillTable(t);
+  if(tb){const rows=tb.rows,h=rows[0];return rows.slice(1).map(c=>c.length<=2?"<strong>"+xesc(c[0]||"")+"</strong>: "+xesc(c[1]||""):"<strong>"+xesc(c[0]||"")+"</strong>: "+c.slice(1).map((x,k)=>(h[k+1]?xesc(h[k+1])+" ":"")+xesc(x)).join(" \u00b7 "));}
+  return String(t||"").split("||").map(x=>x.trim()).filter(Boolean).map(p=>xesc(p));}
+function fillHtml(t,preview){
+  if(preview){return fillLines(t).map(l=>"<div>"+l.replace(/\*([^*\n]+)\*/g,(m,a)=>'<span class="blank">'+a.split(":")[0].split("/")[0]+'</span>')+"</div>").join("");}
+  const blank=s=>preview?s.replace(/\*([^*\n]+)\*/g,(m,a)=>'<span class="blank">'+a.split(":")[0].split("/")[0]+'</span>'):s;
+  const parts=String(t||"").split("||").map(x=>x.trim()).filter(Boolean);const tb=fillTable(t);
+  if(tb){const rows=tb.rows;
+    return "<table>"+rows.map((c,i)=>"<tr>"+c.map(x=>(i===0?"<th>":"<td>")+blank(xesc(x))+(i===0?"</th>":"</td>")).join("")+"</tr>").join("")+"</table>";}
+  return parts.map(p=>"<p>"+blank(xesc(p))+"</p>").join("");
+}
+function bookFill(r){
+  const t=g(r,"Text"),parts=String(t).split("||").map(x=>x.trim()).filter(Boolean);
+  const isTable=!!fillTable(t);
+  const questions=fillLines(t);
+  const gen=g(r,"General feedback");
+  const params={media:{disableImageZooming:false},text:"<p>"+xesc(g(r,"Title")||"Type the missing words.")+"</p>",questions,overallFeedback:[{from:0,to:100,feedback:gen||""}],
+    showSolutions:"Show solution",tryAgain:"Retry",checkAnswer:"Check",submitAnswer:"Submit",notFilledOut:"Please fill in all blanks to view solution",answerIsCorrect:"':ans' is correct",answerIsWrong:"':ans' is wrong",
+    answeredCorrectly:"Answered correctly",answeredIncorrectly:"Answered incorrectly",solutionLabel:"Correct answer:",inputLabel:"Blank input @num of @total",inputHasTipLabel:"Tip available",tipLabel:"Tip",
+    behaviour:{enableRetry:true,allowRetryIfCorrect:false,enableSolutionsButton:true,enableCheckButton:true,autoCheck:false,caseSensitive:false,showSolutionsRequiresInput:true,separateLines:false,confirmCheckDialog:false,confirmRetryDialog:false,acceptSpellingErrors:false},
+    confirmCheck:{header:"Finish ?",body:"Are you sure you wish to finish ?",cancelLabel:"Cancel",confirmLabel:"Finish"},confirmRetry:{header:"Retry ?",body:"Are you sure you wish to retry ?",cancelLabel:"Cancel",confirmLabel:"Confirm"},
+    scoreBarLabel:"You got :num out of :total points",a11yCheck:"Check the answers. The responses will be marked as correct, incorrect, or unanswered.",a11yShowSolution:"Show the solution. The task will be marked with its correct solution.",a11yRetry:"Retry the task. Reset all responses and start the task over again.",a11yCheckingModeHeader:"Checking mode"};
+  return {library:"H5P.Blanks 1.14",params,metadata:{contentType:"Fill in the Blanks",license:"U",title:(g(r,"Title")||"Fill in the blanks").slice(0,60)},subContentId:uuid()};
+}
+
 /* ---------- Interactive Book ---------- */
-const LTYPES=["CHAPTER","TEXT","TABLE","ACCORDION","CARDS","MC","MA","TF","DRAG"];
-const lt=r=>{let t=g(r,"Type").toUpperCase().trim();if(t==="MR")t="MA";if(t==="DRAGTEXT"||t==="DRAG THE WORDS")t="DRAG";if(["CARD","DIALOGCARDS","DIALOG CARDS","DIALOG CARD","FLIPCARD","FLIP CARD"].includes(t))t="CARDS";if(t==="PANEL")t="ACCORDION";return t;};
+const LTYPES=["CHAPTER","TEXT","TABLE","ACCORDION","CARDS","MC","MA","TF","DRAG","LABEL","FILL"];
+const lt=r=>{let t=g(r,"Type").toUpperCase().trim();if(t==="MR")t="MA";if(t==="DRAGTEXT"||t==="DRAG THE WORDS")t="DRAG";if(["CARD","DIALOGCARDS","DIALOG CARDS","DIALOG CARD","FLIPCARD","FLIP CARD"].includes(t))t="CARDS";if(t==="PANEL")t="ACCORDION";if(["DRAGDROP","DRAG AND DROP","DRAG DROP","LABELS","LABELLING","LABELING"].includes(t))t="LABEL";if(["BLANKS","FILL IN THE BLANKS","FILL IN","CLOZE","FIB"].includes(t))t="FILL";return t;};
 const wordCount=s=>(String(s).replace(/\|\|/g," ").match(/[A-Za-z0-9\u00C0-\u024F'\u2019-]+/g)||[]).length;
 function checkBook(recs){
   return recs.map((r,i)=>{
     const e=[],t=lt(r);
     if(t==="SLIDE"){e.push("SLIDE rows make a Course Presentation, but this CSV also has CHAPTER rows. Use one or the other");return e;}
+    if(r.__fix&&r.__fix.kind==="bad")e.push("This row has "+r.__fix.n+" fields but the header has "+r.__fix.want+", so its columns are shifted. Ask the agent to give the batch again with exactly "+r.__fix.want+" fields in every row");
     if(!LTYPES.includes(t)){e.push(unknownType(g(r,"Type"),LTYPES));return e;}
     if(t==="CHAPTER"&&!g(r,"Title"))e.push("A CHAPTER row needs a Title");
     if(t==="TEXT"&&!g(r,"Text"))e.push("Text is empty");
@@ -748,13 +905,29 @@ function checkBook(recs){
       if(t==="MA"&&(!c||c.split(",").some(x=>!opts.includes(x))))e.push("Correct must list filled option letters, e.g. A,C");
       if(t==="TF"&&!["TRUE","FALSE"].includes(c))e.push("Correct must be True or False");
     }
+    if(t==="LABEL"){const L=parseLabels(g(r,"Text")),real=L.filter(x=>!x.dist);
+      if(real.length<2)e.push("A LABEL row needs at least two labels in Text, separated by ||");
+      if(real.length>16)e.push("A LABEL row has "+real.length+" labels. Split it into two LABEL rows of up to 12 so the labels fit beside the picture");
+      if(!imgName(r))e.push("A LABEL row needs a picture in the Image column");
+      else if(!findImage(imgName(r)))e.push("Add the picture for this LABEL row (see the image line below), then place the labels");
+      else{const un=real.filter(x=>!x.pos).length;if(un)e.push(un===real.length?"Place the labels on the picture: click Place labels below":un+" label"+(un>1?"s are":" is")+" not placed yet: click Place labels below");}}
+    if(t==="FILL"){const n=(g(r,"Text").match(/\*[^*\n]+\*/g)||[]).length;if(!n)e.push("A FILL row needs at least one *answer* marked with asterisks in Text");if(/\*\*/.test(g(r,"Text")))e.push("FILL rows cannot use **bold**: asterisks mark the answers. Remove the double asterisks");
+      const tx=g(r,"Text");if(!tx.includes("||")&&(tx.match(/\|/g)||[]).length>3&&!fillTable(tx))e.push("This FILL table has no || between rows, so it cannot be laid out. Put || between rows and | between cells (ask the agent to fix it)");}
     if(t==="DRAG"){const n=(g(r,"Text").match(/\*[^*]+\*/g)||[]).length;if(n<2)e.push("Drag the words needs at least two *answers* marked with asterisks (found "+n+")");}
     return e;
   });
 }
 /* Design warnings for a book (v10): advice only, never blocks the download */
+function pageOf(recs){let p=0;return recs.map((r,i)=>{if(lt(r)==="CHAPTER"&&i>0)p++;return p;});}
+/* v14: show each picture once per page. A LABEL row needs its picture; another row on the same page with that picture leaves it out */
+function repeatedImages(recs){const pg=pageOf(recs),seen={},lab={},out=recs.map(()=>false);
+  recs.forEach((r,i)=>{if(lt(r)==="LABEL"){const im=findImage(imgName(r));if(im)(lab[pg[i]]=lab[pg[i]]||new Set()).add(im);}});
+  recs.forEach((r,i)=>{const t=lt(r);if(t==="LABEL"||t==="ACCORDION"||t==="TABLE")return;const im=imgName(r)?findImage(imgName(r)):null;if(!im)return;
+    const s=(seen[pg[i]]=seen[pg[i]]||new Set());if(s.has(im)||(lab[pg[i]]&&lab[pg[i]].has(im)))out[i]=true;else s.add(im);});
+  return out;}
 function warnBook(recs){
-  const w=recs.map(()=>[]);let chapRow=-1,acts=[];
+  const w=recs.map(()=>[]);let chapRow=-1,acts=[];const rep=repeatedImages(recs);
+  rep.forEach((x,i)=>{if(x)w[i].push("This picture is already on this page"+(recs.some((r,j)=>lt(r)==="LABEL"&&findImage(imgName(r))===findImage(imgName(recs[i])))?" (in the labelling task)":"")+", so it is shown only once");});
   const closeChap=()=>{if(chapRow<0)return;const q=acts.filter(a=>["MC","MA","TF","DRAG"].includes(a));
     if(q.length>=3&&q.every(a=>a==="MC"))w[chapRow].push("Every activity on this page is multiple choice. Mixing in a DRAG, TF or MA row keeps the page more engaging");};
   recs.forEach((r,i)=>{const t=lt(r);
@@ -762,6 +935,11 @@ function warnBook(recs){
     if(["TEXT","CHAPTER","ACCORDION"].includes(t)){const n=wordCount(g(r,"Text"));
       if(n>150)w[i].push("This text is "+n+" words. Students read best in blocks of about 60 to 100 words; consider splitting it, or moving detail into ACCORDION rows")}
     if((t==="ACCORDION"||t==="TABLE")&&imgName(r))w[i].push("Images cannot go on "+(t==="TABLE"?"a TABLE row":"an accordion panel")+", so this one is left out. Put it on the TEXT row before");
+    if(r.__fix&&r.__fix.kind!=="bad")w[i].push("This row had "+r.__fix.n+" fields instead of "+r.__fix.want+". The converter "+(r.__fix.kind==="realigned"?"lined up its Image and Alt text columns":"added empty fields at the end")+"; check the row looks right");
+    if(t==="FILL"){const tb=fillTable(g(r,"Text"));if(tb&&tb.guessed)w[i].push("The table rows were separated with | instead of ||. The converter laid it out as "+tb.guessed+" columns from the headings; check the table in the preview");}
+    if(t==="FILL"){const long=(g(r,"Text").match(/\*[^*\n]+\*/g)||[]).map(x=>x.slice(1,-1).split(":")[0].split("/")[0].trim()).filter(x=>x.split(/\s+/).length>3);
+      if(long.length)w[i].push("Students must type each answer exactly, so long answers will be marked wrong: "+long.slice(0,3).map(x=>"'"+x+"'").join(", ")+(long.length>3?" and "+(long.length-3)+" more":"")+". Keep only the key word or two between the asterisks, and the rest of the sentence outside them");}
+    if(t==="LABEL"){const img=findImage(imgName(r));if(img){const o=labelOverlaps(img,parseLabels(g(r,"Text")));if(o.length)w[i].push("Drop zones overlap: "+o.join("; ")+". Click Move labels and space them out, or students may drop a label in the wrong zone");}}
     if(t==="TABLE"){const n=new Set(tableRows(g(r,"Text")).map(c=>c.length));if(n.size>1)w[i].push("The table rows have different numbers of cells. Missing cells are left blank; check each row has the same number of | dividers");}
   });
   closeChap();return w;
@@ -791,8 +969,9 @@ function bookDrag(r){
 function unwrapQ(q){return {library:q.library,metadata:q.metadata,params:q.params,subContentId:q.subContentId};}
 function buildBook(recs,title,description,opts){
   opts=opts||{};
-  const chapters=[];let cur=null,usesTF=false,group=null;const media=mediaCollector();const flags={table:false,accordion:false,cards:false};
-  const pushImg=r=>{const img=findImage(imgName(r));if(img)cur.params.content.push(colItem(h5pImage(img,imgAlt(r),media)));};
+  const chapters=[];let cur=null,usesTF=false,group=null;const media=mediaCollector();const flags={table:false,accordion:false,cards:false,label:false,fill:false};
+  const skip=repeatedImages(recs);
+  const pushImg=r=>{if(skip[recs.indexOf(r)])return;const img=findImage(imgName(r));if(img)cur.params.content.push(colItem(h5pImage(img,imgAlt(r),media)));};
   const newChap=t=>{cur={library:"H5P.Column 1.22",metadata:{contentType:"Page",license:"U",title:t},params:{content:[]},subContentId:uuid()};chapters.push(cur);};
   recs.forEach(r=>{
     const t=lt(r);
@@ -803,6 +982,8 @@ function buildBook(recs,title,description,opts){
     if(t==="TABLE"){flags.table=true;if(g(r,"Title"))cur.params.content.push(colItem(advText("<h3>"+xesc(g(r,"Title"))+"</h3>",g(r,"Title"))));cur.params.content.push(colItem(bookTable(r)));return;}
     if(t==="ACCORDION"){flags.accordion=true;if(!group){group={type:t,obj:bookAccordion()};cur.params.content.push(colItem(group.obj));}group.obj.params.panels.push(accPanel(r));return;}
     if(t==="CARDS"){flags.cards=true;if(!group){group={type:t,obj:bookCards()};cur.params.content.push(colItem(group.obj));}group.obj.params.dialogs.push(card(r,media));return;}
+    if(t==="LABEL"){const q=bookLabel(r,media);if(q){flags.label=true;if(g(r,"Title"))cur.params.content.push(colItem(advText("<p><strong>"+xesc(g(r,"Title"))+"</strong></p>",g(r,"Title"))));cur.params.content.push(colItem(q));}return;}
+    if(t==="FILL"){flags.fill=true;pushImg(r);cur.params.content.push(colItem(bookFill(r)));return;}
     pushImg(r);
     if(t==="MC"||t==="MA"){const q=h5pMC(asQuizRow(Object.assign({},r,{type:t})),"",opts);if(g(r,"Title"))q.metadata.title=g(r,"Title").slice(0,60);cur.params.content.push(colItem(unwrapQ(q)));}
     else if(t==="TF"){usesTF=true;const q=h5pTF(asQuizRow(r),"",opts);cur.params.content.push(colItem(unwrapQ(q)));}
@@ -817,6 +998,9 @@ function buildBook(recs,title,description,opts){
   if(flags.accordion)deps.push({machineName:"H5P.Accordion",majorVersion:1,minorVersion:0});
   if(flags.cards)deps.push({machineName:"H5P.Dialogcards",majorVersion:1,minorVersion:9});
   if(flags.table)deps.push({machineName:"H5P.Table",majorVersion:1,minorVersion:2});
+  /* v14: Drag and Drop and Fill in the Blanks, at the versions H5P.Column 1.22 accepts */
+  if(flags.label)deps.push({machineName:"H5P.DragQuestion",majorVersion:1,minorVersion:15});
+  if(flags.fill)deps.push({machineName:"H5P.Blanks",majorVersion:1,minorVersion:14},{machineName:"H5P.TextUtilities",majorVersion:1,minorVersion:3});
   const h5pjson={title,language:"en",mainLibrary:"H5P.InteractiveBook",embedTypes:TPL.bookEmbed,license:"U",defaultLanguage:"en",preloadedDependencies:deps};
   return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify(content)]].concat(media.files()),chapters:chapters.length,images:media.count(),flags};
 }
@@ -846,6 +1030,7 @@ function checkSlides(recs){
     const t=lt(r);
     if(t==="CHAPTER"){errs[i].push("CHAPTER rows belong in an Interactive Book. In a Course Presentation, use SLIDE");return;}
     if(t==="SLIDE"){if(!g(r,"Title"))errs[i].push("A SLIDE row needs a Title");return;}
+    if(t==="LABEL"||t==="FILL"){errs[i].push((t==="LABEL"?"LABEL (Drag and Drop)":"FILL (Fill in the Blanks)")+" rows work in an Interactive Book only. Use DRAG or MC in a Course Presentation");return;}
     errs[i]=checkBook([r])[0];
   });
   groupSlides(recs).forEach(s=>{
@@ -1005,7 +1190,7 @@ function buildBranch(recs,title,description,opts){
 const $=id=>document.getElementById(id);
 let current=null;
 /* v13: say plainly when a type is unknown, and that the page may be out of date */
-const CONVERTER_VERSION=13;
+const CONVERTER_VERSION=15;
 function unknownType(t,list){return t?"'"+t+"' is not a row type this converter (version "+CONVERTER_VERSION+") knows. It accepts "+list.join(", ")+". If the agent produced this row, refresh this page (Ctrl+F5, or Cmd+Shift+R on a Mac) in case you have an older copy open; if it still appears, ask the agent to use one of those types":"The Type column is empty. Use one of "+list.join(", ");}
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
 
@@ -1093,7 +1278,7 @@ function finishStatus(nErr,rows,dups,okMsg,badMsg){
 }
 function refreshBook(t){
   const recs=t.recs,errs=checkBook(recs),warns=warnBook(recs),pv=$("preview");
-  let ch=0,tx=0,qs=0,dr=0,acc=0,cds=0,tb=0,prev="";
+  let ch=0,tx=0,qs=0,dr=0,acc=0,cds=0,tb=0,lb=0,fl=0,prev="";
   recs.forEach((r,i)=>{
     const ty=lt(r);const box=el("div","q"+(errs[i].length?" err":"")+(ty==="CHAPTER"?" chapter":""));
     if((ty==="ACCORDION"||ty==="CARDS")&&prev!==ty){if(ty==="ACCORDION")acc++;else cds++;}
@@ -1104,16 +1289,18 @@ function refreshBook(t){
     else if(ty==="TABLE"){tb++;if(g(r,"Title"))box.appendChild(el("div","stem",g(r,"Title")));const d=el("div");d.innerHTML=tableHtml(g(r,"Text"));box.appendChild(d);}
     else if(ty==="ACCORDION"){const d=el("details","acc");const s=el("summary",null,g(r,"Title")||"(no heading)");d.appendChild(s);const b=el("div");b.innerHTML=fmt(g(r,"Text"));d.appendChild(b);box.appendChild(d);}
     else if(ty==="CARDS"){const d=el("div","card2");const f=el("div");f.appendChild(el("div","lab","Front"));const fb=el("div");fb.innerHTML=cardHtml(g(r,"Title"));f.appendChild(fb);const b=el("div");b.appendChild(el("div","lab","Back"));const bb=el("div");bb.innerHTML=cardHtml(g(r,"Text"));b.appendChild(bb);d.appendChild(f);d.appendChild(b);box.appendChild(d);}
+    else if(ty==="LABEL"){lb++;if(g(r,"Title"))box.appendChild(el("div","stem",g(r,"Title")));addLabelPreview(box,i,r);}
+    else if(ty==="FILL"){fl++;if(g(r,"Title"))box.appendChild(el("div","stem",g(r,"Title")));const d=el("div","fillprev");d.innerHTML=fillHtml(g(r,"Text"),true);box.appendChild(d);}
     else if(ty==="DRAG"){dr++;const d=el("div","stem");d.innerHTML=xesc(g(r,"Text")).replace(/\|\|/g,"<br><br>").replace(/\*([^*]+)\*/g,"<u><strong>$1</strong></u>");box.appendChild(d);}
     else if(["MC","MA","TF"].includes(ty)){qs++;box.appendChild(el("div","stem",g(r,"Text")));const c=g(r,"Correct").toUpperCase().replace(/\s/g,"").split(",");
       if(ty==="TF")["True","False"].forEach(v=>box.appendChild(el("div","opt"+(c[0]===v.toUpperCase()?" correct":""),v)));
       else [...LETTERS].forEach(L=>{const o=g(r,"Option "+L);if(!o)return;const d=el("div","opt"+(c.includes(L)?" correct":""),L+". "+o);if(g(r,"Feedback "+L))d.appendChild(el("div","fb",g(r,"Feedback "+L)));box.appendChild(d);});
       if(g(r,"General feedback")){const d=el("div","gfb");d.appendChild(el("strong",null,"General feedback: "));d.appendChild(document.createTextNode(g(r,"General feedback")));box.appendChild(d);}}
-    const iw=(ty==="ACCORDION"||ty==="TABLE"?[]:addImgLine(box,r));if(["CHAPTER","TEXT","CARDS"].includes(ty))addSlideButton(box,i,r);if(["CHAPTER","TEXT","CARDS","MC","MA","TF","DRAG"].includes(ty))addDocButton(box,i,r);
+    const iw=(ty==="ACCORDION"||ty==="TABLE"?[]:ty==="LABEL"?imgNotes(r).warns:addImgLine(box,r));if(["CHAPTER","TEXT","CARDS"].includes(ty))addSlideButton(box,i,r);if(["CHAPTER","TEXT","CARDS","MC","MA","TF","DRAG","LABEL","FILL"].includes(ty))addDocButton(box,i,r);
     errBox(box,errs[i]);errBox(box,iw.concat(warns[i]),"warn");pv.appendChild(box);
   });
   const nErr=errs.filter(e=>e.length).length;
-  $("summary").textContent=imgSummary(recs)+"Interactive Book: "+ch+" page"+(ch===1?"":"s")+" \u00b7 "+tx+" text block"+(tx===1?"":"s")+" \u00b7 "+qs+" question"+(qs===1?"":"s")+" \u00b7 "+dr+" drag the words"+(acc?" \u00b7 "+acc+" accordion"+(acc===1?"":"s"):"")+(tb?" \u00b7 "+tb+" table"+(tb===1?"":"s"):"")+(cds?" \u00b7 "+cds+" set"+(cds===1?"":"s")+" of Dialog Cards":"")+(COVER?" \u00b7 cover image":"");
+  $("summary").textContent=imgSummary(recs)+"Interactive Book: "+ch+" page"+(ch===1?"":"s")+" \u00b7 "+tx+" text block"+(tx===1?"":"s")+" \u00b7 "+qs+" question"+(qs===1?"":"s")+" \u00b7 "+dr+" drag the words"+(acc?" \u00b7 "+acc+" accordion"+(acc===1?"":"s"):"")+(tb?" \u00b7 "+tb+" table"+(tb===1?"":"s"):"")+(cds?" \u00b7 "+cds+" set"+(cds===1?"":"s")+" of Dialog Cards":"")+(lb?" \u00b7 "+lb+" Drag and Drop":"")+(fl?" \u00b7 "+fl+" Fill in the Blanks":"")+(COVER?" \u00b7 cover image":"");
   if(finishStatus(nErr,recs.length,t.dups,"All "+recs.length+" rows look fine.",rowsToFix(errs)))$("bookBtn").disabled=false;
 }
 function refreshBranch(t){
