@@ -101,7 +101,7 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 <main>
 <h1>Quiz and H5P Converter</h1>
 <p class="muted">Turns the CSV from the course agents into a Canvas quiz (.zip), or an H5P Question Set, Interactive Book, Course Presentation or Branching Scenario (.h5p), with all feedback included. The page works out which from the header row. Images named in the CSV can be added too. Everything happens in this page; nothing is uploaded anywhere.</p>
-<p class="muted small">Version 15 · 24 November 2026</p>
+<p class="muted small">Version 16 · 24 November 2026</p>
 
 <div class="card">
 <h2>1. Title and description</h2>
@@ -114,7 +114,7 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 <div class="card">
 <h2>2. Paste the CSV</h2>
 <p>Paste the whole CSV block from the agent, including the header row, or open a saved .csv file. Quiz CSVs start <code>Pool,Pick,Type</code>. Interactive Book and Course Presentation CSVs start <code>Type,Title,Text</code> (CHAPTER rows make a book; SLIDE rows make a presentation). Branching Scenario CSVs start <code>ID,Type,Title,Text,Next</code>. If the agent exported in batches, paste each batch below the last; repeated header rows are ignored.</p>
-<p class="muted small"><strong>Formatting inside Text:</strong> <code>||</code> starts a new paragraph, <code>- </code> starts a bullet, <code>**bold**</code>, <code>## </code> starts a heading, and <code>---</code> adds a separator line. Interactive Books also take ACCORDION rows (collapsible panels), CARDS rows (Dialog Cards that students turn over) and TABLE rows (rows split by <code>||</code>, cells by <code>|</code>, first row as headings). <strong>LABEL</strong> rows make a Drag and Drop: students drag labels onto a picture; you click where each label belongs with <strong>Place labels</strong>. <strong>FILL</strong> rows make Fill in the Blanks: students type the words marked with asterisks, for example <code>The *axon* carries the impulse</code>, with other accepted answers after a slash (<code>*neurone/neuron*</code>).</p>
+<p class="muted small"><strong>Formatting inside Text:</strong> <code>||</code> starts a new paragraph, <code>- </code> starts a bullet, <code>**bold**</code>, <code>## </code> starts a heading, and <code>---</code> adds a separator line. Interactive Books also take ACCORDION rows (collapsible panels), CARDS rows (Dialog Cards that students turn over) and TABLE rows (rows split by <code>||</code>, cells by <code>|</code>, first row as headings). <strong>LABEL</strong> rows make a Drag and Drop: students drag labels onto a picture; you click where each label belongs with <strong>Place labels</strong>. <strong>FILL</strong> rows make Fill in the Blanks: students type the words marked with asterisks, for example <code>The *axon* carries the impulse</code>, with other accepted answers after a slash (<code>*neurone/neuron*</code>). <strong>PART</strong> rows (from workbook conversions) start a chapter: the pages after it become sections of that chapter, each with its title as a heading.</p>
 <textarea id="csv" spellcheck="false" placeholder="Pool,Pick,Type,Points,Question,Correct,..."></textarea>
 <div class="row">
 <button id="openBtn" type="button">Open a .csv file</button>
@@ -124,7 +124,7 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 <h3 class="imgh">Images (optional)</h3>
 <p class="muted small">If the CSV has an Image column, add those image files here (PNG, JPG, GIF or SVG). They are matched by file name and placed in the Interactive Book, Course Presentation or Branching Scenario. Quizzes ignore images.</p>
 <p class="muted small"><strong>Slides from a lecture:</strong> when the CSV names a slide, such as <code>Pain_mechanisms.pdf#12</code>, add that lecture saved as a PDF here and the page turns slide 12 into an image. Once a PDF is added, you can also choose slides yourself: each page, text block or card in the preview gets a <strong>Choose a slide</strong> button. Click any slide image to crop it to the figure. Save PowerPoint files as PDF first, keeping the same name. The PDF stays on your computer.</p>
-<p class="muted small"><strong>Pictures from a Word document:</strong> when the CSV names a figure or question, such as <code>Workbook.docx#Figure 2</code> or <code>Workbook.docx#Q8</code>, add that Word file (.docx) here. The page takes out its pictures and matches them to the figure captions and questions. Check each one in the preview, and use <strong>Change picture</strong> to pick a different one. Labels drawn in Word on top of a picture are not part of the picture, so they do not come across.</p>
+<p class="muted small"><strong>Pictures from a Word document:</strong> when the CSV names a figure or question, such as <code>Workbook.docx#Figure 2</code> or <code>Workbook.docx#Q8</code>, add that Word file (.docx) here. The page takes out its pictures and matches them to the figure captions and questions. Check each one in the preview, and use <strong>Change picture</strong> to pick a different one. Pictures that sit side by side in Word are kept side by side, and pictures keep the size they have in the Word file. Labels drawn in Word on top of a picture are not part of the picture, so they do not come across.</p>
 <p class="muted small">Only use images you have the right to share: check figures taken from textbooks or other publishers before they go into FLO, and never use images of real patients without consent.</p>
 <div class="row">
 <button id="imgBtn" type="button">Add images, lecture PDFs or Word files</button>
@@ -157,6 +157,7 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 <div id="dlBook" hidden><div class="dl-opt">
 <h3>H5P Interactive Book</h3>
 <label class="chk"><input type="checkbox" id="bookSolutions" checked> Let students reveal the correct answer</label>
+<label class="chk"><input type="checkbox" id="bookWordSize" checked> Keep pictures from Word files at their size in the Word file (untick to make every picture fill the page width)</label>
 <label class="chk swatch">Book colour <input type="color" id="bookColour" value="#1768c4"> <span id="bookColourHex" class="muted">#1768c4</span> <button id="bookColourReset" type="button" style="padding:4px 10px">Reset</button></label>
 <p class="muted small" style="margin-top:2px">Used for the book's header, buttons and progress bar.</p>
 <label class="chk">Cover image (optional)</label>
@@ -460,6 +461,7 @@ function detectMode(head){
 
 /* ---------- Images (v9): files added on the page, matched by the CSV's Image column ---------- */
 const IMAGES={};
+let MODE=""; /* v16: the kind of activity being previewed */
 let COVER=null; /* v10: Interactive Book cover image */
 const imgKey=n=>String(n||"").trim().replace(/^.*[\\/]/,"").toLowerCase();
 const stripExt=n=>n.replace(/\.[a-z0-9]+$/,"");
@@ -593,12 +595,40 @@ function cropBytes(bytes,mime,w,h,c){return new Promise(res=>{const u=URL.create
     const cv=document.createElement("canvas");cv.width=cw;cv.height=ch;cv.getContext("2d").drawImage(im,x,y,cw,ch,0,0,cw,ch);URL.revokeObjectURL(u);
     const out=mime==="image/jpeg"?"image/jpeg":"image/png";cv.toBlob(async bl=>{res(bl?{bytes:new Uint8Array(await bl.arrayBuffer()),w:cw,h:ch,mime:out}:null);},out,0.9);};
   im.onerror=()=>{URL.revokeObjectURL(u);res(null);};im.src=u;});}
+/* v16: draw Word pictures onto one image, side by side as in Word; with pad, add clear space either side so the picture keeps its Word width on the page */
+const GAP_CM=0.4;
+/* Floating pictures in their left-to-right order on the page; otherwise document order */
+const leftToRight=list=>{const a=list.slice().sort((p,q)=>p.n-q.n);return a.every(p=>p.x!==null&&p.x!==undefined&&p.xf===a[0].xf)?a.sort((p,q)=>p.x-q.x):a;};
+const picsCm=list=>list.reduce((s,p)=>s+p.cm,0)+GAP_CM*(list.length-1);
+function composePics(list,pad,textCm){
+  let ppc=0;list.forEach(p=>{ppc=Math.max(ppc,p.img.w/p.cm);});
+  const totCm=picsCm(list),outCm=pad?Math.max(textCm,totCm):totCm;let sc=ppc;if(outCm*sc>2400)sc=2400/outCm;
+  const ws=list.map(p=>Math.max(1,Math.round(p.cm*sc))),hs=list.map((p,i)=>Math.max(1,Math.round(ws[i]*p.img.h/p.img.w)));
+  const W=Math.max(1,Math.round(outCm*sc)),H=Math.max(...hs);const cv=document.createElement("canvas");cv.width=W;cv.height=H;const cx=cv.getContext("2d");
+  const jpg=list.every(p=>p.img.mime==="image/jpeg");if(jpg){cx.fillStyle="#ffffff";cx.fillRect(0,0,W,H);}
+  let x=Math.round((W-(ws.reduce((s,v)=>s+v,0)+Math.round(GAP_CM*sc)*(list.length-1)))/2);
+  list.forEach((p,i)=>{cx.drawImage(p.bmp,x,Math.round((H-hs[i])/2),ws[i],hs[i]);x+=ws[i]+Math.round(GAP_CM*sc);});
+  const mime=jpg?"image/jpeg":"image/png";const bin=atob(cv.toDataURL(mime,0.9).split(",")[1]);const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+  return {bytes,mime,w:W,h:H};
+}
 async function readDocx(f){
   const bytes=new Uint8Array(await f.arrayBuffer());const z=unzipEntries(bytes);const td=new TextDecoder(),dp=new DOMParser();
   const docXml=await z.get("word/document.xml");if(!docXml)throw new Error("this file has no Word document inside. Save it from Word as a .docx file and add it again");
   const rels={};const rx=await z.get("word/_rels/document.xml.rels");
   if(rx){const rd=dp.parseFromString(td.decode(rx),"application/xml");for(const r of rd.getElementsByTagName("Relationship")){if(r.getAttribute("TargetMode")==="External")continue;const t=r.getAttribute("Target")||"";rels[r.getAttribute("Id")]=normPath(t.startsWith("/")?t.slice(1):"word/"+t);}}
   const doc=dp.parseFromString(td.decode(docXml),"application/xml");const ev=[];
+  /* v16: the page's text width, and each picture's width in Word, so pictures keep their size; pictures in one paragraph or table row sit side by side */
+  let textCm=null;const sps=doc.getElementsByTagNameNS(NS_W,"sectPr");if(sps.length){const s=sps[sps.length-1],sz=s.getElementsByTagNameNS(NS_W,"pgSz")[0],mg=s.getElementsByTagNameNS(NS_W,"pgMar")[0];
+    const av=(e,k)=>e?parseInt(e.getAttributeNS(NS_W,k)||"0",10)||0:0;if(sz&&mg){const tw=av(sz,"w")-av(mg,"left")-av(mg,"right");if(tw>1440)textCm=tw/1440*2.54;}}
+  const NID=new WeakMap();let nid=0;const idOf=n=>{if(!n)return 0;if(!NID.has(n))NID.set(n,++nid);return NID.get(n);};
+  const geo=e=>{let dr=null,tr=null,p=null;for(let a=e.parentNode;a&&a.nodeType===1;a=a.parentNode){const l=a.localName;if(!dr&&(l==="drawing"||l==="pict"))dr=a;if(!p&&l==="p"&&a.namespaceURI===NS_W)p=a;if(!tr&&l==="tr"&&a.namespaceURI===NS_W)tr=a;}
+    let cm=null;if(dr&&dr.localName==="drawing"){const all=[...dr.getElementsByTagName("*")];const ex=all.find(x=>x.localName==="extent"&&x.parentNode&&(x.parentNode.localName==="inline"||x.parentNode.localName==="anchor"));
+      const nb=all.filter(x=>x.localName==="blip"&&!inFallback(x)).length;if(ex&&nb===1){const v=parseInt(ex.getAttribute("cx")||"0",10);if(v>0)cm=v/360000;}}
+    /* A floating picture's position across the page, so pictures side by side keep their left-to-right order */
+    let x=null,xf="";const an=dr&&dr.localName==="drawing"?[...dr.children].find(c=>c.localName==="anchor"):null;
+    if(an){const ph=[...an.children].find(c=>c.localName==="positionH");if(ph){xf=ph.getAttribute("relativeFrom")||"";const po=[...ph.children].find(c=>c.localName==="posOffset"),al=[...ph.children].find(c=>c.localName==="align");
+      if(po)x=(parseInt(po.textContent,10)||0)/360000;else if(al){const m={left:0,inside:0,center:9,right:18,outside:18}[al.textContent.trim()];x=m===undefined?null:m;}}}
+    return {cm,gk:tr?"r"+idOf(tr):p?"p"+idOf(p):"",dk:idOf(dr),x,xf};};
   for(const e of doc.getElementsByTagName("*")){const ln=e.localName;
     if(ln==="p"&&e.namespaceURI===NS_W){if(inFallback(e))continue;const tx=paraText(e);if(!tx)continue;const o={k:"t",tx};
       const fm=tx.length<250&&tx.match(/^(?:Figure|Fig\.?)\s*(\d+)\b\s*[:.–—-]?\s*(.*)$/i);if(fm){o.fig=+fm[1];o.cap=fm[2];}
@@ -607,7 +637,7 @@ async function readDocx(f){
       /* Word often shows only part of a picture: a crop stored as a:srcRect, in thousandths of a percent */
       let crop=null;if(ln==="blip"&&e.parentNode){const sr=[...e.parentNode.children].find(c=>c.localName==="srcRect");
         if(sr){const v=k=>Math.max(0,parseInt(sr.getAttribute(k)||"0",10)||0)/100000;const c=[v("l"),v("t"),v("r"),v("b")];if(c.some(x=>x>0)&&c[0]+c[2]<0.98&&c[1]+c[3]<0.98)crop=c;}}
-      ev.push({k:"i",path:rels[id],crop});}}
+      const gg=geo(e);ev.push({k:"i",path:rels[id],crop,cm:gg.cm,gk:gg.gk,dk:gg.dk,x:gg.x,xf:gg.xf});}}
   const pics=[],seen=new Set(),sigs=new Set();let lastQ=null,skipped={small:0,format:0};
   for(let i=0;i<ev.length;i++){const x=ev[i];
     if(x.k==="t"){if(x.q!==undefined)lastQ=x.q;continue;}
@@ -624,8 +654,11 @@ async function readDocx(f){
     const ex=m=>m==="image/jpeg"?"jpg":m==="image/gif"?"gif":"png";
     const img={key:base+"_picture"+n+"."+ex(mime),name:"picture "+n+" of "+f.name,bytes:b,mime,w,h,docpic:true};
     if(full)img.full={key:base+"_picture"+n+"_whole."+ex(full.mime),name:"picture "+n+" (whole) of "+f.name,bytes:full.bytes,mime:full.mime,w:full.w,h:full.h,docpic:true};
-    pics.push({n,fig,cap,q:lastQ,img});}
-  return {name:f.name,base:f.name.replace(/^.*[\\/]/,"").replace(/\.docx?$/i,"").trim().toLowerCase(),pics,skipped};
+    let bmp=null;try{bmp=await createImageBitmap(new Blob([b],{type:mime}));}catch(err){bmp=null;}
+    pics.push({n,fig,cap,q:lastQ,img,cm:x.cm||null,gk:x.gk,dk:x.dk,x:x.x,xf:x.xf,bmp});}
+  const byG={};pics.forEach(p=>{if(p.gk&&p.cm&&p.bmp)(byG[p.gk]=byG[p.gk]||[]).push(p);});
+  Object.values(byG).forEach(list=>{if(list.length>1&&list.length<=4&&new Set(list.map(p=>p.dk)).size===list.length){const o=leftToRight(list);o.forEach(p=>{p.grp=o;});}});
+  return {name:f.name,base:f.name.replace(/^.*[\\/]/,"").replace(/\.docx?$/i,"").trim().toLowerCase(),pics,skipped,textCm,cache:{}};
 }
 /* "Workbook.docx#Figure 2", "Figure 2", "Workbook.docx#Q8", "Question 8", "Workbook.docx#picture 5" or "Workbook.docx#5" */
 function docRef(v){
@@ -652,7 +685,23 @@ function resolveDoc(d){
   const pic=(d.kind==="fig"?cands.slice().sort((a,b)=>(b.img.w*b.img.h)-(a.img.w*a.img.h)):cands)[0]||null;
   return {doc,pic,cands,exact:f.exact};
 }
-function docImage(d){const r=resolveDoc(d);return r.pic?(d.full&&r.pic.img.full?r.pic.img.full:r.pic.img):null;}
+/* The pictures a reference shows: a figure or question whose picture sits beside others in Word shows them all */
+function docList(d,r){if(!r.pic)return [];if(d.full||d.kind==="pic")return [r.pic];if(r.pic.grp)return r.pic.grp;
+  /* A figure made of separate pictures that fit across the page together (for example two floating pictures) shows them side by side */
+  const c=r.cands||[],tc=r.doc&&r.doc.textCm;
+  if(d.kind==="fig"&&c.length>1&&c.length<=4&&tc&&c.every(p=>p.cm&&p.bmp)&&new Set(c.map(p=>p.dk)).size===c.length&&picsCm(c)<=tc)return leftToRight(c);
+  return [r.pic];}
+/* ctx "page": a picture on a book page, kept at its Word width when that option is on */
+function docImage(d,ctx){const r=resolveDoc(d);if(!r.pic)return null;if(d.full)return r.pic.img.full||r.pic.img;
+  const list=docList(d,r),tc=r.doc.textCm;
+  const pad=ctx==="page"&&!!tc&&list.every(p=>p.cm&&p.bmp)&&picsCm(list)<0.85*tc;
+  if(list.length===1&&!pad)return r.pic.img;
+  const key=list.map(p=>p.n).join("-")+(pad?"_sized":"");const cache=r.doc.cache||(r.doc.cache={});
+  if(!cache[key]){try{const c=composePics(list,pad,tc);const stem=r.pic.img.key.replace(/_picture\d+\.\w+$/,"");
+      cache[key]=Object.assign(c,{key:stem+"_picture"+key+"."+(c.mime==="image/jpeg"?"jpg":"png"),name:(list.length>1?"pictures "+list.map(p=>p.n).join(", "):"picture "+r.pic.n)+" of "+r.doc.name,docpic:true});}
+    catch(err){return r.pic.img;}}
+  return cache[key];}
+const andList=a=>a.length<2?a.join(""):a.slice(0,-1).join(", ")+" and "+a[a.length-1];
 function openDocPicker(idx,r){
   const docs=Object.values(DOCS);if(!docs.length)return;
   const cur=docRef(imgName(r)),res=cur?resolveDoc(cur):{};let doc=res.doc||docs[0],chosen=res.pic?res.pic.n:0,whole=!!(cur&&cur.full);
@@ -680,7 +729,7 @@ function openDocPicker(idx,r){
 function addDocButton(box,idx,r){if(!Object.keys(DOCS).length)return;
   const b=el("button","small",docRef(imgName(r))&&docImage(docRef(imgName(r)))?"Change picture":"Choose a picture from the Word file");b.type="button";b.style.marginTop="6px";b.style.marginLeft="6px";b.style.padding="4px 10px";b.onclick=()=>openDocPicker(idx,r);box.appendChild(b);}
 function addPickers(box,idx,r){addSlideButton(box,idx,r);addDocButton(box,idx,r);}
-function findImage(name){const dr=docRef(name);if(dr)return docImage(dr);const pr=pdfRef(name);if(pr)return slideImage(pr);const k=imgKey(name);if(!k)return null;if(IMAGES[k])return IMAGES[k];const s=stripExt(k);for(const key in IMAGES){if(stripExt(key)===s)return IMAGES[key];}return null;}
+function findImage(name,ctx){const dr=docRef(name);if(dr)return docImage(dr,ctx);const pr=pdfRef(name);if(pr)return slideImage(pr);const k=imgKey(name);if(!k)return null;if(IMAGES[k])return IMAGES[k];const s=stripExt(k);for(const key in IMAGES){if(stripExt(key)===s)return IMAGES[key];}return null;}
 const imgName=r=>g(r,"Image");
 const imgAlt=r=>g(r,"Alt text")||g(r,"Alt");
 function mediaCollector(){
@@ -704,8 +753,11 @@ function imgNotes(r){const n=imgName(r);if(!n)return {line:null,warns:[]};
   if(dr){const res=resolveDoc(dr),w=[],lab=refLabel(dr);const wf=dr.base?"'"+n.replace(/\s*#.*$/,"").replace(/\s*(?:figure|fig\.?|question|q|picture|pic|image)\s*\d+\s*$/i,"").trim()+"'":"the Word file";let txt,ok=false;
     if(!res.doc){txt=lab+" of "+wf+" (Word file not added yet)";w.push(lab+" needs "+wf+". Add the Word file under Images, or the activity is built without it");}
     else if(!res.pic){txt=lab+" of "+res.doc.name+" (not found)";w.push(dr.kind==="pic"?res.doc.name+" has "+res.doc.pics.length+" pictures, so picture "+dr.n+" is left out. Use Choose a picture":"No picture sits under "+lab+" in "+res.doc.name+". Use Choose a picture to pick one, or the activity is built without it");}
-    else{ok=true;const p=res.pic,im=docImage(dr);txt=lab+" of "+res.doc.name+(dr.kind!=="pic"?" → picture "+p.n:"")+" ("+im.w+"×"+im.h+(p.img.full&&!dr.full?", cropped as in Word":"")+")";
-      if(res.cands.length>1)w.push(lab+" is made of "+res.cands.length+" pictures in the Word file. The "+(dr.kind==="q"?"first":"largest")+" one is used; check it is right, or use Change picture");
+    else{ok=true;const p=res.pic,im=docImage(dr),list=docList(dr,res),side=list.length>1;
+      txt=lab+" of "+res.doc.name+(side?" → pictures "+andList(list.map(x=>x.n).sort((p,q)=>p-q))+", side by side as in Word":dr.kind!=="pic"?" → picture "+p.n:"")+" ("+im.w+"×"+im.h+(p.img.full&&!dr.full?", cropped as in Word":"")+")";
+      const pageRow=MODE==="book"&&!["LABEL","CARDS"].includes(lt(r))&&$("bookWordSize")&&$("bookWordSize").checked;
+      if(pageRow&&!dr.full&&res.doc.textCm&&list.every(x=>x.cm)){const pc=Math.round(100*picsCm(list)/res.doc.textCm);txt+=pc<85?" · shown at about "+pc+"% of the page width, as in Word":" · full page width, as in Word";}
+      if(res.cands.length>1&&!res.cands.every(c=>list.includes(c)))w.push(lab+" is made of "+res.cands.length+" pictures in the Word file. The "+(dr.kind==="q"?"first":"largest")+" one is used; check it is right, or use Change picture");
       if(dr.base&&!res.exact)w.push("No Word file called "+wf+" was added, so the picture is taken from "+res.doc.name+". Check it is the right file");
       else if(!dr.base&&Object.keys(DOCS).length>1)w.push("Several Word files were added, so the picture is taken from "+res.doc.name+". Use Change picture if it should come from another one");}
     if(!imgAlt(r))w.push(lab+" has no alt text. Add a short description in the Alt text column");
@@ -883,7 +935,7 @@ function bookFill(r){
 }
 
 /* ---------- Interactive Book ---------- */
-const LTYPES=["CHAPTER","TEXT","TABLE","ACCORDION","CARDS","MC","MA","TF","DRAG","LABEL","FILL"];
+const LTYPES=["PART","CHAPTER","TEXT","TABLE","ACCORDION","CARDS","MC","MA","TF","DRAG","LABEL","FILL"];
 const lt=r=>{let t=g(r,"Type").toUpperCase().trim();if(t==="MR")t="MA";if(t==="DRAGTEXT"||t==="DRAG THE WORDS")t="DRAG";if(["CARD","DIALOGCARDS","DIALOG CARDS","DIALOG CARD","FLIPCARD","FLIP CARD"].includes(t))t="CARDS";if(t==="PANEL")t="ACCORDION";if(["DRAGDROP","DRAG AND DROP","DRAG DROP","LABELS","LABELLING","LABELING"].includes(t))t="LABEL";if(["BLANKS","FILL IN THE BLANKS","FILL IN","CLOZE","FIB"].includes(t))t="FILL";return t;};
 const wordCount=s=>(String(s).replace(/\|\|/g," ").match(/[A-Za-z0-9\u00C0-\u024F'\u2019-]+/g)||[]).length;
 function checkBook(recs){
@@ -892,7 +944,7 @@ function checkBook(recs){
     if(t==="SLIDE"){e.push("SLIDE rows make a Course Presentation, but this CSV also has CHAPTER rows. Use one or the other");return e;}
     if(r.__fix&&r.__fix.kind==="bad")e.push("This row has "+r.__fix.n+" fields but the header has "+r.__fix.want+", so its columns are shifted. Ask the agent to give the batch again with exactly "+r.__fix.want+" fields in every row");
     if(!LTYPES.includes(t)){e.push(unknownType(g(r,"Type"),LTYPES));return e;}
-    if(t==="CHAPTER"&&!g(r,"Title"))e.push("A CHAPTER row needs a Title");
+    if((t==="CHAPTER"||t==="PART")&&!g(r,"Title"))e.push("A "+t+" row needs a Title");
     if(t==="TEXT"&&!g(r,"Text"))e.push("Text is empty");
     if(t==="ACCORDION"){if(!g(r,"Title"))e.push("An ACCORDION row needs a Title (the panel heading students click)");if(!g(r,"Text"))e.push("An ACCORDION row needs Text (what the panel shows when opened)");}
     if(t==="TABLE"){const tr=tableRows(g(r,"Text"));if(tr.length<2||Math.max(...tr.map(c=>c.length))<2)e.push("A TABLE row needs at least two rows (split by ||) and two cells (split by |) in Text");}
@@ -918,7 +970,7 @@ function checkBook(recs){
   });
 }
 /* Design warnings for a book (v10): advice only, never blocks the download */
-function pageOf(recs){let p=0;return recs.map((r,i)=>{if(lt(r)==="CHAPTER"&&i>0)p++;return p;});}
+function pageOf(recs){let p=0;return recs.map((r,i)=>{if((lt(r)==="CHAPTER"||lt(r)==="PART")&&i>0)p++;return p;});}
 /* v14: show each picture once per page. A LABEL row needs its picture; another row on the same page with that picture leaves it out */
 function repeatedImages(recs){const pg=pageOf(recs),seen={},lab={},out=recs.map(()=>false);
   recs.forEach((r,i)=>{if(lt(r)==="LABEL"){const im=findImage(imgName(r));if(im)(lab[pg[i]]=lab[pg[i]]||new Set()).add(im);}});
@@ -931,8 +983,8 @@ function warnBook(recs){
   const closeChap=()=>{if(chapRow<0)return;const q=acts.filter(a=>["MC","MA","TF","DRAG"].includes(a));
     if(q.length>=3&&q.every(a=>a==="MC"))w[chapRow].push("Every activity on this page is multiple choice. Mixing in a DRAG, TF or MA row keeps the page more engaging");};
   recs.forEach((r,i)=>{const t=lt(r);
-    if(t==="CHAPTER"){closeChap();chapRow=i;acts=[];}else acts.push(t);
-    if(["TEXT","CHAPTER","ACCORDION"].includes(t)){const n=wordCount(g(r,"Text"));
+    if(t==="CHAPTER"||t==="PART"){closeChap();chapRow=i;acts=[];}else acts.push(t);
+    if(["TEXT","CHAPTER","PART","ACCORDION"].includes(t)){const n=wordCount(g(r,"Text"));
       if(n>150)w[i].push("This text is "+n+" words. Students read best in blocks of about 60 to 100 words; consider splitting it, or moving detail into ACCORDION rows")}
     if((t==="ACCORDION"||t==="TABLE")&&imgName(r))w[i].push("Images cannot go on "+(t==="TABLE"?"a TABLE row":"an accordion panel")+", so this one is left out. Put it on the TEXT row before");
     if(r.__fix&&r.__fix.kind!=="bad")w[i].push("This row had "+r.__fix.n+" fields instead of "+r.__fix.want+". The converter "+(r.__fix.kind==="realigned"?"lined up its Image and Alt text columns":"added empty fields at the end")+"; check the row looks right");
@@ -971,11 +1023,15 @@ function buildBook(recs,title,description,opts){
   opts=opts||{};
   const chapters=[];let cur=null,usesTF=false,group=null;const media=mediaCollector();const flags={table:false,accordion:false,cards:false,label:false,fill:false};
   const skip=repeatedImages(recs);
-  const pushImg=r=>{if(skip[recs.indexOf(r)])return;const img=findImage(imgName(r));if(img)cur.params.content.push(colItem(h5pImage(img,imgAlt(r),media)));};
+  const parts=recs.some(r=>lt(r)==="PART");
+  const pushImg=r=>{if(skip[recs.indexOf(r)])return;const img=findImage(imgName(r),opts.wordSize?"page":"");if(img)cur.params.content.push(colItem(h5pImage(img,imgAlt(r),media)));};
   const newChap=t=>{cur={library:"H5P.Column 1.22",metadata:{contentType:"Page",license:"U",title:t},params:{content:[]},subContentId:uuid()};chapters.push(cur);};
   recs.forEach(r=>{
     const t=lt(r);
     if(group&&group.type!==t)group=null;
+    if(t==="PART"){group=null;newChap(g(r,"Title"));if(g(r,"Text"))cur.params.content.push(colItem(bookText("",g(r,"Text"))));pushImg(r);return;}
+    /* v16: after a PART row, each CHAPTER row becomes a section of that chapter, headed by its title */
+    if(t==="CHAPTER"&&parts&&cur){group=null;cur.params.content.push(colItem(advText("<h2>"+xesc(g(r,"Title"))+"</h2>"+(g(r,"Text")?fmt(g(r,"Text")):""),g(r,"Title"))));pushImg(r);return;}
     if(t==="CHAPTER"){group=null;newChap(g(r,"Title"));if(g(r,"Text"))cur.params.content.push(colItem(bookText("",g(r,"Text"))));pushImg(r);return;}
     if(!cur)newChap("Chapter 1");
     if(t==="TEXT"){cur.params.content.push(colItem(bookText(g(r,"Title"),g(r,"Text"))));pushImg(r);return;}
@@ -993,6 +1049,7 @@ function buildBook(recs,title,description,opts){
   if(opts.cover)cover.coverMedium=h5pImage(opts.cover,opts.coverAlt||("Cover image: "+title),media);
   const content=Object.assign(clone(TPL.bookTop),{showCoverPage:true,bookCover:cover,chapters});
   if(/^#[0-9a-f]{6}$/i.test(opts.colour||""))content.behaviour.baseColor=opts.colour.toLowerCase();
+  if(parts)Object.assign(content,{chapterCompleted:"Chapter completed!",partCompleted:"@pages chapter(s) completed",incompleteChapter:"Incomplete chapter",markAsFinished:"I have finished this chapter",noChapterInteractionBoldText:"You have not interacted with any chapters.",noChapterInteractionText:"You have to interact with at least one chapter before you can see the summary."});
   const deps=clone(TPL.bookDeps);if(usesTF)deps.push({machineName:"H5P.TrueFalse",majorVersion:1,minorVersion:8});
   /* v10: added only when used. Versions are the ones H5P.Column 1.22 accepts */
   if(flags.accordion)deps.push({machineName:"H5P.Accordion",majorVersion:1,minorVersion:0});
@@ -1190,7 +1247,7 @@ function buildBranch(recs,title,description,opts){
 const $=id=>document.getElementById(id);
 let current=null;
 /* v13: say plainly when a type is unknown, and that the page may be out of date */
-const CONVERTER_VERSION=15;
+const CONVERTER_VERSION=16;
 function unknownType(t,list){return t?"'"+t+"' is not a row type this converter (version "+CONVERTER_VERSION+") knows. It accepts "+list.join(", ")+". If the agent produced this row, refresh this page (Ctrl+F5, or Cmd+Shift+R on a Mac) in case you have an older copy open; if it still appears, ask the agent to use one of those types":"The Type column is empty. Use one of "+list.join(", ");}
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
 
@@ -1200,7 +1257,7 @@ function refresh(){
   if(!text.trim()){st.hidden=true;pv.textContent="Nothing to preview yet.";sum.textContent="Paste a CSV to see a summary.";return;}
   const t=toRecords(parseCSV(text));
   if(t.err){st.hidden=false;st.className="status bad";st.textContent=t.err;sum.textContent="";return;}
-  if(t.mode==="book"&&t.recs.some(r=>lt(r)==="SLIDE"))t.mode="slides";
+  if(t.mode==="book"&&t.recs.some(r=>lt(r)==="SLIDE"))t.mode="slides";MODE=t.mode;
   $("dlQuiz").hidden=t.mode!=="quiz";$("dlBook").hidden=t.mode!=="book";$("dlSlides").hidden=t.mode!=="slides";$("dlBranch").hidden=t.mode!=="branch";
   if(t.mode==="book"){refreshBook(t);return;}
   if(t.mode==="slides"){refreshSlides(t);return;}
@@ -1278,13 +1335,14 @@ function finishStatus(nErr,rows,dups,okMsg,badMsg){
 }
 function refreshBook(t){
   const recs=t.recs,errs=checkBook(recs),warns=warnBook(recs),pv=$("preview");
-  let ch=0,tx=0,qs=0,dr=0,acc=0,cds=0,tb=0,lb=0,fl=0,prev="";
+  let ch=0,pt=0,tx=0,qs=0,dr=0,acc=0,cds=0,tb=0,lb=0,fl=0,prev="";const parts=recs.some(r=>lt(r)==="PART");
   recs.forEach((r,i)=>{
-    const ty=lt(r);const box=el("div","q"+(errs[i].length?" err":"")+(ty==="CHAPTER"?" chapter":""));
+    const ty=lt(r);const box=el("div","q"+(errs[i].length?" err":"")+(ty==="CHAPTER"||ty==="PART"?" chapter":""));
     if((ty==="ACCORDION"||ty==="CARDS")&&prev!==ty){if(ty==="ACCORDION")acc++;else cds++;}
     const grp=(ty==="ACCORDION"||ty==="CARDS")?(prev===ty?" \u00b7 continues the "+(ty==="CARDS"?"card set":"accordion")+" above":" \u00b7 new "+(ty==="CARDS"?"set of Dialog Cards":"Accordion")):"";prev=ty;
-    box.appendChild(el("div","meta","Row "+(i+2)+" \u00b7 "+ty+(g(r,"Title")&&ty!=="CHAPTER"&&ty!=="CARDS"&&ty!=="ACCORDION"?" \u00b7 "+g(r,"Title"):"")+grp));
-    if(ty==="CHAPTER"){ch++;box.appendChild(el("div","stem","Page: "+g(r,"Title")));if(g(r,"Text")){const d=el("div");d.innerHTML=fmt(g(r,"Text"));box.appendChild(d);}}
+    box.appendChild(el("div","meta","Row "+(i+2)+" \u00b7 "+ty+(g(r,"Title")&&ty!=="CHAPTER"&&ty!=="PART"&&ty!=="CARDS"&&ty!=="ACCORDION"?" \u00b7 "+g(r,"Title"):"")+grp));
+    if(ty==="PART"){pt++;box.appendChild(el("div","stem","Chapter: "+g(r,"Title")));if(g(r,"Text")){const d=el("div");d.innerHTML=fmt(g(r,"Text"));box.appendChild(d);}}
+    else if(ty==="CHAPTER"){ch++;box.appendChild(el("div","stem",(parts?"Section: ":"Page: ")+g(r,"Title")));if(g(r,"Text")){const d=el("div");d.innerHTML=fmt(g(r,"Text"));box.appendChild(d);}}
     else if(ty==="TEXT"){tx++;if(g(r,"Title"))box.appendChild(el("div","stem",g(r,"Title")));const d=el("div");d.innerHTML=fmt(g(r,"Text"));box.appendChild(d);}
     else if(ty==="TABLE"){tb++;if(g(r,"Title"))box.appendChild(el("div","stem",g(r,"Title")));const d=el("div");d.innerHTML=tableHtml(g(r,"Text"));box.appendChild(d);}
     else if(ty==="ACCORDION"){const d=el("details","acc");const s=el("summary",null,g(r,"Title")||"(no heading)");d.appendChild(s);const b=el("div");b.innerHTML=fmt(g(r,"Text"));d.appendChild(b);box.appendChild(d);}
@@ -1296,11 +1354,11 @@ function refreshBook(t){
       if(ty==="TF")["True","False"].forEach(v=>box.appendChild(el("div","opt"+(c[0]===v.toUpperCase()?" correct":""),v)));
       else [...LETTERS].forEach(L=>{const o=g(r,"Option "+L);if(!o)return;const d=el("div","opt"+(c.includes(L)?" correct":""),L+". "+o);if(g(r,"Feedback "+L))d.appendChild(el("div","fb",g(r,"Feedback "+L)));box.appendChild(d);});
       if(g(r,"General feedback")){const d=el("div","gfb");d.appendChild(el("strong",null,"General feedback: "));d.appendChild(document.createTextNode(g(r,"General feedback")));box.appendChild(d);}}
-    const iw=(ty==="ACCORDION"||ty==="TABLE"?[]:ty==="LABEL"?imgNotes(r).warns:addImgLine(box,r));if(["CHAPTER","TEXT","CARDS"].includes(ty))addSlideButton(box,i,r);if(["CHAPTER","TEXT","CARDS","MC","MA","TF","DRAG","LABEL","FILL"].includes(ty))addDocButton(box,i,r);
+    const iw=(ty==="ACCORDION"||ty==="TABLE"?[]:ty==="LABEL"?imgNotes(r).warns:addImgLine(box,r));if(["PART","CHAPTER","TEXT","CARDS"].includes(ty))addSlideButton(box,i,r);if(["PART","CHAPTER","TEXT","CARDS","MC","MA","TF","DRAG","LABEL","FILL"].includes(ty))addDocButton(box,i,r);
     errBox(box,errs[i]);errBox(box,iw.concat(warns[i]),"warn");pv.appendChild(box);
   });
   const nErr=errs.filter(e=>e.length).length;
-  $("summary").textContent=imgSummary(recs)+"Interactive Book: "+ch+" page"+(ch===1?"":"s")+" \u00b7 "+tx+" text block"+(tx===1?"":"s")+" \u00b7 "+qs+" question"+(qs===1?"":"s")+" \u00b7 "+dr+" drag the words"+(acc?" \u00b7 "+acc+" accordion"+(acc===1?"":"s"):"")+(tb?" \u00b7 "+tb+" table"+(tb===1?"":"s"):"")+(cds?" \u00b7 "+cds+" set"+(cds===1?"":"s")+" of Dialog Cards":"")+(lb?" \u00b7 "+lb+" Drag and Drop":"")+(fl?" \u00b7 "+fl+" Fill in the Blanks":"")+(COVER?" \u00b7 cover image":"");
+  $("summary").textContent=imgSummary(recs)+"Interactive Book: "+(parts?pt+" chapter"+(pt===1?"":"s")+" \u00b7 "+ch+" section"+(ch===1?"":"s"):ch+" page"+(ch===1?"":"s"))+" \u00b7 "+tx+" text block"+(tx===1?"":"s")+" \u00b7 "+qs+" question"+(qs===1?"":"s")+" \u00b7 "+dr+" drag the words"+(acc?" \u00b7 "+acc+" accordion"+(acc===1?"":"s"):"")+(tb?" \u00b7 "+tb+" table"+(tb===1?"":"s"):"")+(cds?" \u00b7 "+cds+" set"+(cds===1?"":"s")+" of Dialog Cards":"")+(lb?" \u00b7 "+lb+" Drag and Drop":"")+(fl?" \u00b7 "+fl+" Fill in the Blanks":"")+(COVER?" \u00b7 cover image":"");
   if(finishStatus(nErr,recs.length,t.dups,"All "+recs.length+" rows look fine.",rowsToFix(errs)))$("bookBtn").disabled=false;
 }
 function refreshBranch(t){
@@ -1335,7 +1393,7 @@ function refreshBranch(t){
   if(finishStatus(nErr,recs.length,t.dups,"All "+recs.length+" nodes connect properly.",mMsg||rowsToFix(A.errs)))$("branchBtn").disabled=false;
 }
 function saveH5P(files,title){if(slidesPending()){alert("Slides are still being prepared. Wait a moment, then download again.");return;}const blob=zip(files);const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(title.replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,50)||"h5p")+".h5p";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
-$("bookBtn").onclick=()=>{const title=$("title").value.trim();const t=toRecords(parseCSV($("csv").value));saveH5P(buildBook(t.recs,title,$("desc").value.trim(),{solutions:$("bookSolutions").checked,shuffle:true,pass:50,colour:$("bookColour").value,cover:COVER}).files,title);};
+$("bookBtn").onclick=()=>{const title=$("title").value.trim();const t=toRecords(parseCSV($("csv").value));saveH5P(buildBook(t.recs,title,$("desc").value.trim(),{solutions:$("bookSolutions").checked,shuffle:true,pass:50,colour:$("bookColour").value,cover:COVER,wordSize:$("bookWordSize").checked}).files,title);};
 /* v10: book colour and cover image */
 const DEFAULT_COLOUR="#1768c4";
 $("bookColour").addEventListener("input",()=>{$("bookColourHex").textContent=$("bookColour").value;});
@@ -1345,7 +1403,7 @@ $("coverFile").onchange=async e=>{const f=e.target.files[0];e.target.value="";if
 $("coverClear").onclick=()=>{COVER=null;$("coverName").textContent="No cover image. The cover shows the title and description only.";refresh();};
 $("branchBtn").onclick=()=>{const title=$("title").value.trim();const t=toRecords(parseCSV($("csv").value));saveH5P(buildBranch(t.recs,title,$("desc").value.trim(),{scoring:$("bsScoring").value,back:$("bsBack").checked}).files,title);};
 $("slidesBtn").onclick=()=>{const title=$("title").value.trim();const t=toRecords(parseCSV($("csv").value));saveH5P(buildSlides(t.recs,title,{solutions:$("slidesSolutions").checked,shuffle:true,pass:50,menu:$("slidesMenu").checked}).files,title);};
-["bsScoring","bsBack","bookSolutions","slidesSolutions","slidesMenu"].forEach(id=>$(id).addEventListener("input",refresh));
+["bsScoring","bsBack","bookSolutions","bookWordSize","slidesSolutions","slidesMenu"].forEach(id=>$(id).addEventListener("input",refresh));
 
 $("h5pBtn").onclick=()=>{
   const title=$("title").value.trim();const recs=toRecords(parseCSV($("csv").value)).recs||[];
