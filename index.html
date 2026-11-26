@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- v18: the page may only contact the two library sites that host the PDF reader; it cannot send your files anywhere -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob:; worker-src blob:; connect-src https://cdnjs.cloudflare.com https://cdn.jsdelivr.net blob: data:; img-src data: blob:; style-src 'unsafe-inline'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Quiz and H5P Converter</title>
 <style>
 :root{--bg:#f6f7f9;--card:#fff;--ink:#1d2430;--muted:#5b6575;--line:#d9dee6;--accent:#1f5f99;--accent-ink:#fff;--ok:#1e7a46;--ok-bg:#e8f5ed;--bad:#b3261e;--bad-bg:#fdecea;--chip:#eef2f7}
@@ -100,8 +102,8 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 <body>
 <main>
 <h1>Quiz and H5P Converter</h1>
-<p class="muted">Turns the CSV from the course agents into a Canvas quiz (.zip), or an H5P Question Set, Interactive Book, Course Presentation or Branching Scenario (.h5p), with all feedback included. The page works out which from the header row. Images named in the CSV can be added too. Everything happens in this page; nothing is uploaded anywhere.</p>
-<p class="muted small">Version 16 · 24 November 2026</p>
+<p class="muted">Turns the CSV from the course agents into a Canvas quiz (.zip), or an H5P Question Set, Interactive Book, Course Presentation or Branching Scenario (.h5p), with all feedback included. The page works out which from the header row. Images named in the CSV can be added too. Your files stay on your computer: everything is processed in this page and nothing is uploaded. The one exception is the PDF reader: when you add a PDF, the page downloads pdf.js (version 4.10.38) from a public library site and checks it is the exact, unaltered file before using it. The page is not allowed to contact any other site.</p>
+<p class="muted small">Version 18 · 24 November 2026</p>
 
 <div class="card">
 <h2>1. Title and description</h2>
@@ -114,7 +116,7 @@ code{background:var(--chip);padding:1px 5px;border-radius:4px}
 <div class="card">
 <h2>2. Paste the CSV</h2>
 <p>Paste the whole CSV block from the agent, including the header row, or open a saved .csv file. Quiz CSVs start <code>Pool,Pick,Type</code>. Interactive Book and Course Presentation CSVs start <code>Type,Title,Text</code> (CHAPTER rows make a book; SLIDE rows make a presentation). Branching Scenario CSVs start <code>ID,Type,Title,Text,Next</code>. If the agent exported in batches, paste each batch below the last; repeated header rows are ignored.</p>
-<p class="muted small"><strong>Formatting inside Text:</strong> <code>||</code> starts a new paragraph, <code>- </code> starts a bullet, <code>**bold**</code>, <code>## </code> starts a heading, and <code>---</code> adds a separator line. Interactive Books also take ACCORDION rows (collapsible panels), CARDS rows (Dialog Cards that students turn over) and TABLE rows (rows split by <code>||</code>, cells by <code>|</code>, first row as headings). <strong>LABEL</strong> rows make a Drag and Drop: students drag labels onto a picture; you click where each label belongs with <strong>Place labels</strong>. <strong>FILL</strong> rows make Fill in the Blanks: students type the words marked with asterisks, for example <code>The *axon* carries the impulse</code>, with other accepted answers after a slash (<code>*neurone/neuron*</code>). <strong>PART</strong> rows (from workbook conversions) start a chapter: the pages after it become sections of that chapter, each with its title as a heading.</p>
+<p class="muted small"><strong>Formatting inside Text:</strong> <code>||</code> starts a new paragraph, <code>- </code> starts a bullet, <code>**bold**</code>, <code>## </code> starts a heading, and <code>---</code> adds a separator line. Interactive Books also take ACCORDION rows (collapsible panels), CARDS rows (Dialog Cards that students turn over) and TABLE rows (rows split by <code>||</code>, cells by <code>|</code>, first row as headings). <strong>LABEL</strong> rows make a Drag and Drop: students drag labels onto a picture; you click where each label belongs with <strong>Place labels</strong>. <strong>FILL</strong> rows make Fill in the Blanks: students type the words marked with asterisks, for example <code>The *axon* carries the impulse</code>, with other accepted answers after a slash (<code>*neurone/neuron*</code>). A picture on an <strong>MC</strong>, <strong>MA</strong> or <strong>TF</strong> row appears inside that question, above it. In a quiz CSV, add <code>Image</code> and <code>Alt text</code> columns at the end to give questions pictures in the H5P Question Set (Canvas quizzes leave pictures out). <strong>PART</strong> rows (from workbook conversions) start a chapter: the pages after it become sections of that chapter, each with its title as a heading.</p>
 <textarea id="csv" spellcheck="false" placeholder="Pool,Pick,Type,Points,Question,Correct,..."></textarea>
 <div class="row">
 <button id="openBtn" type="button">Open a .csv file</button>
@@ -393,13 +395,17 @@ function h5pTF(r,casePrefix,opts){
     confirmCheck:CONFIRM_CHECK,confirmRetry:CONFIRM_RETRY,question:casePrefix+"<p>"+he(g(r,"Question"))+"</p>"},
     library:"H5P.TrueFalse 1.8",metadata:{contentType:"True/False Question",license:"U",title:g(r,"Question").replace(/\s+/g," ").slice(0,60)},subContentId:uuid()};
 }
+/* v17: a picture named on a question row goes in the question's own picture slot (shown above the question; students can zoom it) */
+function addQMedia(q,r,media,img){if(!img)img=imgName(r)?findImage(imgName(r)):null;if(!img)return false;q.params.media={type:h5pImage(img,imgAlt(r),media),disableImageZooming:false};return true;}
 function buildH5P(recs,title,opts){
-  const questions=[],skipped=[];let pendingCase="",pools=false;
+  const questions=[],skipped=[];let pendingCase="",pools=false,caseImg=null,caseRow=null;const media=mediaCollector();
   recs.forEach((r,i)=>{
     const t=typeOf(r);if(g(r,"Pool"))pools=true;
-    if(t==="CASE"){const ct=caseText(r);pendingCase=(/^case\b/i.test(ct)?"":"<p><strong>Case</strong></p>")+"<p>"+he(ct)+"</p><hr>";return;}
-    if(t==="MC"||t==="MA"){questions.push(h5pMC(r,pendingCase,opts));pendingCase="";}
-    else if(t==="TF"){questions.push(h5pTF(r,pendingCase,opts));pendingCase="";}
+    if(t==="CASE"){const ct=caseText(r);pendingCase=(/^case\b/i.test(ct)?"":"<p><strong>Case</strong></p>")+"<p>"+he(ct)+"</p><hr>";caseImg=imgName(r)?findImage(imgName(r)):null;caseRow=r;return;}
+    /* A picture on a CASE row goes with the next question, unless that question has its own */
+    const addImg=q=>{if(!addQMedia(q,r,media)&&caseImg)addQMedia(q,caseRow,media,caseImg);caseImg=null;};
+    if(t==="MC"||t==="MA"){const q=h5pMC(r,pendingCase,opts);addImg(q);questions.push(q);pendingCase="";}
+    else if(t==="TF"){const q=h5pTF(r,pendingCase,opts);addImg(q);questions.push(q);pendingCase="";}
     else skipped.push("row "+(i+2)+" ("+t+")");
   });
   const content={introPage:{showIntroPage:false,startButtonText:"Start Quiz",introduction:""},progressType:questions.length>12?"textual":"dots",passPercentage:opts.pass,questions,
@@ -407,8 +413,9 @@ function buildH5P(recs,title,opts){
     endGame:{showResultPage:true,showSolutionButton:opts.solutions,showRetryButton:true,noResultMessage:"Finished",message:"Results",amountCorrect:"@finals of @totals correct",scoreBarLabel:"You got @finals out of @totals points",scoreHeader:"Score",overallFeedback:[{from:0,to:100}],solutionButtonText:"Show solution",retryButtonText:"Retry",finishButtonText:"Finish",submitButtonText:"Submit",showAnimations:false,skippable:false,skipButtonText:"Skip video"},
     override:{checkButton:true,showSolutionButton:opts.solutions?"on":"off",retryButton:"on"},
     texts:{prevButton:"Previous question",previous:"Previous",nextButton:"Next question",next:"Next",finishButton:"Finish",submitButton:"Submit",textualProgress:"Question: @current of @total questions",jumpToQuestion:"Question %d of %total",questionLabel:"Question",readSpeakerProgress:"Question @current of @total",unansweredText:"Unanswered",answeredText:"Answered",currentQuestionText:"Current question",navigationLabel:"Questions",questionSetInstruction:"Choose question to display"}};
-  const h5pjson={title,language:"en",mainLibrary:"H5P.QuestionSet",embedTypes:["div"],license:"U",defaultLanguage:"en",preloadedDependencies:H5P_DEPS};
-  return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify(content)]],count:questions.length,skipped,pools};
+  const deps=clone(H5P_DEPS);if(media.count()&&!deps.some(d=>d.machineName==="H5P.Image"))deps.unshift({machineName:"H5P.Image",majorVersion:1,minorVersion:1});
+  const h5pjson={title,language:"en",mainLibrary:"H5P.QuestionSet",embedTypes:["div"],license:"U",defaultLanguage:"en",preloadedDependencies:deps};
+  return {files:[["h5p.json",JSON.stringify(h5pjson)],["content/content.json",JSON.stringify(content)]].concat(media.files()),count:questions.length,skipped,pools,images:media.count()};
 }
 function h5pOpts(){let pass=parseInt($("h5pPass").value,10);if(isNaN(pass))pass=50;pass=Math.max(0,Math.min(100,pass));return {solutions:$("h5pSolutions").checked,shuffle:$("h5pShuffle").checked,pass};}
 
@@ -469,16 +476,22 @@ const stripExt=n=>n.replace(/\.[a-z0-9]+$/,"");
 const PDFS={};      /* base name (lower case, no extension) -> {name, base, bytes, doc} */
 const RENDERED={};  /* "base#n" -> image object, or "pending", "range:N" or "error:..." */
 let pdfjsReady=null;
+/* v18: pdf.js 4.10.38 (patched for CVE-2024-4367). Each file is checked against its SHA-384 hash before use, and PDFs are opened with isEvalSupported off */
+const PDFJS_HOSTS=["https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/","https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/"];
+const PDFJS_FILES={lib:["pdf.min.mjs","+0ti2moQlmLN7WZHE2RHIf5lV8hHxhxEalN0il3YZceG26fUPyOkR0hp9daxk1i7"],worker:["pdf.worker.min.mjs","ToeVvShCxKc6CEvhHeMt0Q8A06pSPDbAlngO9nokrDmh914gk/pYd0N7D0a4Lz2o"]};
+async function fetchVerified([name,sha]){let last=null;
+  for(const h of PDFJS_HOSTS){try{const r=await fetch(h+name,{credentials:"omit",referrerPolicy:"no-referrer"});if(!r.ok)throw new Error("HTTP "+r.status);
+    const b=await r.arrayBuffer();const d=new Uint8Array(await crypto.subtle.digest("SHA-384",b));let s="";d.forEach(x=>{s+=String.fromCharCode(x);});
+    if(btoa(s)!==sha){last=new Error("the PDF reader downloaded from "+h.split("/")[2]+" did not match the expected file, so it was not used");continue;}
+    return URL.createObjectURL(new Blob([b],{type:"text/javascript"}));}catch(e){if(!last)last=e;}}
+  throw last||new Error("PDF reader unavailable");}
+const PDF_OPTS={isEvalSupported:false,enableXfa:false};
 function loadPdfJs(){
   if(pdfjsReady)return pdfjsReady;
-  const srcs=[["https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js","https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"],
-              ["https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js","https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js"]];
   pdfjsReady=(async()=>{
-    for(const [lib,worker] of srcs){
-      try{if(!window.pdfjsLib)await new Promise((res,rej)=>{const s=document.createElement("script");s.src=lib;s.onload=res;s.onerror=rej;document.head.appendChild(s);});
-        if(window.pdfjsLib){window.pdfjsLib.GlobalWorkerOptions.workerSrc=worker;return window.pdfjsLib;}}catch(e){}
-    }
-    throw new Error("The PDF reader could not load. Check your internet connection, or export the slides as images instead");
+    try{const [lib,worker]=await Promise.all([fetchVerified(PDFJS_FILES.lib),fetchVerified(PDFJS_FILES.worker)]);
+      const m=await import(lib);m.GlobalWorkerOptions.workerSrc=worker;return m;}
+    catch(e){throw new Error("The PDF reader could not load ("+(e&&e.message?e.message:e)+"). Check your internet connection, or export the slides as images instead");}
   })();
   pdfjsReady.catch(()=>{pdfjsReady=null;});
   return pdfjsReady;
@@ -506,7 +519,7 @@ async function renderSlide(p,n,k){
   RENDERED[k]="pending";
   try{
     const lib=await loadPdfJs();
-    if(!p.doc)p.doc=lib.getDocument({data:p.bytes.slice()}).promise;
+    if(!p.doc)p.doc=lib.getDocument(Object.assign({data:p.bytes.slice()},PDF_OPTS)).promise;
     const doc=await p.doc;
     if(n<1||n>doc.numPages){RENDERED[k]="range:"+doc.numPages;refresh();return;}
     const page=await doc.getPage(n);const v1=page.getViewport({scale:1});
@@ -536,7 +549,7 @@ function setRowFields(idx,vals){
 }
 const PAGETHUMBS={};
 async function pageThumb(p,n){const k=p.base+"#"+n;if(PAGETHUMBS[k])return PAGETHUMBS[k];
-  const lib=await loadPdfJs();if(!p.doc)p.doc=lib.getDocument({data:p.bytes.slice()}).promise;const doc=await p.doc;const page=await doc.getPage(n);
+  const lib=await loadPdfJs();if(!p.doc)p.doc=lib.getDocument(Object.assign({data:p.bytes.slice()},PDF_OPTS)).promise;const doc=await p.doc;const page=await doc.getPage(n);
   const v1=page.getViewport({scale:1});const vp=page.getViewport({scale:240/v1.width});const c=document.createElement("canvas");c.width=Math.round(vp.width);c.height=Math.round(vp.height);
   const ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);await page.render({canvasContext:ctx,viewport:vp}).promise;
   return PAGETHUMBS[k]=c.toDataURL("image/jpeg",0.8);}
@@ -554,7 +567,7 @@ async function openSlidePicker(idx,r){
   none.onclick=()=>{close();setRowImage(idx,"","");};
   use.onclick=()=>{if(!chosen){msg.textContent="Click a slide first.";return;}if(!alt.value.trim()){msg.textContent="Add alt text so students using a screen reader know what the figure shows.";alt.focus();return;}close();setRowImage(idx,pdf.name+"#"+chosen,alt.value.trim());};
   async function fill(){grid.innerHTML="";msg.textContent="Loading slides\u2026";
-    try{const lib=await loadPdfJs();if(!pdf.doc)pdf.doc=lib.getDocument({data:pdf.bytes.slice()}).promise;const doc=await pdf.doc;msg.textContent="";
+    try{const lib=await loadPdfJs();if(!pdf.doc)pdf.doc=lib.getDocument(Object.assign({data:pdf.bytes.slice()},PDF_OPTS)).promise;const doc=await pdf.doc;msg.textContent="";
       for(let n=1;n<=doc.numPages;n++){const b=el("button","slidepick"+(n===chosen?" on":""));b.type="button";const im=document.createElement("img");im.alt="Slide "+n;b.appendChild(im);b.appendChild(el("span",null,String(n)));
         b.onclick=()=>{chosen=n;grid.querySelectorAll(".slidepick").forEach(x=>x.classList.remove("on"));b.classList.add("on");};grid.appendChild(b);
         pageThumb(pdf,n).then(u=>{im.src=u;}).catch(()=>{});}
@@ -1040,10 +1053,11 @@ function buildBook(recs,title,description,opts){
     if(t==="CARDS"){flags.cards=true;if(!group){group={type:t,obj:bookCards()};cur.params.content.push(colItem(group.obj));}group.obj.params.dialogs.push(card(r,media));return;}
     if(t==="LABEL"){const q=bookLabel(r,media);if(q){flags.label=true;if(g(r,"Title"))cur.params.content.push(colItem(advText("<p><strong>"+xesc(g(r,"Title"))+"</strong></p>",g(r,"Title"))));cur.params.content.push(colItem(q));}return;}
     if(t==="FILL"){flags.fill=true;pushImg(r);cur.params.content.push(colItem(bookFill(r)));return;}
-    pushImg(r);
-    if(t==="MC"||t==="MA"){const q=h5pMC(asQuizRow(Object.assign({},r,{type:t})),"",opts);if(g(r,"Title"))q.metadata.title=g(r,"Title").slice(0,60);cur.params.content.push(colItem(unwrapQ(q)));}
-    else if(t==="TF"){usesTF=true;const q=h5pTF(asQuizRow(r),"",opts);cur.params.content.push(colItem(unwrapQ(q)));}
-    else if(t==="DRAG")cur.params.content.push(colItem(bookDrag(r)));
+    /* v17: MC, MA and TF rows show their picture inside the question; other rows show it just before */
+    const qImg=r=>skip[recs.indexOf(r)]?null:(imgName(r)?findImage(imgName(r)):null);
+    if(t==="MC"||t==="MA"){const q=h5pMC(asQuizRow(Object.assign({},r,{type:t})),"",opts);if(g(r,"Title"))q.metadata.title=g(r,"Title").slice(0,60);addQMedia(q,r,media,qImg(r));cur.params.content.push(colItem(unwrapQ(q)));}
+    else if(t==="TF"){usesTF=true;const q=h5pTF(asQuizRow(r),"",opts);addQMedia(q,r,media,qImg(r));cur.params.content.push(colItem(unwrapQ(q)));}
+    else if(t==="DRAG"){pushImg(r);cur.params.content.push(colItem(bookDrag(r)));}
   });
   const cover={coverDescription:"<p style=\"text-align: center;\">"+xesc(description||title)+"</p>"};
   if(opts.cover)cover.coverMedium=h5pImage(opts.cover,opts.coverAlt||("Cover image: "+title),media);
@@ -1247,7 +1261,7 @@ function buildBranch(recs,title,description,opts){
 const $=id=>document.getElementById(id);
 let current=null;
 /* v13: say plainly when a type is unknown, and that the page may be out of date */
-const CONVERTER_VERSION=16;
+const CONVERTER_VERSION=18;
 function unknownType(t,list){return t?"'"+t+"' is not a row type this converter (version "+CONVERTER_VERSION+") knows. It accepts "+list.join(", ")+". If the agent produced this row, refresh this page (Ctrl+F5, or Cmd+Shift+R on a Mac) in case you have an older copy open; if it still appears, ask the agent to use one of those types":"The Type column is empty. Use one of "+list.join(", ");}
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
 
@@ -1262,12 +1276,13 @@ function refresh(){
   if(t.mode==="book"){refreshBook(t);return;}
   if(t.mode==="slides"){refreshSlides(t);return;}
   if(t.mode==="branch"){refreshBranch(t);return;}
-  const recs=t.recs;const {errs,poolErrs}=check(recs);
+  const recs=t.recs;const {errs,poolErrs}=check(recs);const hasImg=!!recs[0]&&Object.prototype.hasOwnProperty.call(recs[0],"image");
+  const qImgs=(box,i,r)=>{if(!hasImg)return;const iw=addImgLine(box,r);addPickers(box,i,r);errBox(box,iw,"warn");};
   const nErr=errs.filter(e=>e.length).length+poolErrs.length;
   recs.forEach((r,i)=>{
     const tp=typeOf(r),box=el("div","q"+(errs[i].length?" err":""));
     if(tp==="CASE"){box.classList.add("case");box.appendChild(el("div","meta","Row "+(i+2)+" · case text (no marks)"+(g(r,"Type").toUpperCase()!=="CASE"?" · detected automatically":"")));
-      box.appendChild(el("div","stem",caseText(r)));if(errs[i].length){const d=el("div","errs");errs[i].forEach(e=>d.appendChild(el("div",null,"\u26a0 "+e)));box.appendChild(d);}pv.appendChild(box);return;}
+      box.appendChild(el("div","stem",caseText(r)));qImgs(box,i,r);if(errs[i].length){const d=el("div","errs");errs[i].forEach(e=>d.appendChild(el("div",null,"\u26a0 "+e)));box.appendChild(d);}pv.appendChild(box);return;}
     box.appendChild(el("div","meta","Row "+(i+2)+" · "+(tp||"?")+" · "+(g(r,"Points")||"1")+" pt"+(g(r,"Pool")?" · pool: "+g(r,"Pool"):"")));
     box.appendChild(el("div","stem",g(r,"Question")||"(no question text)"));
     const correct=g(r,"Correct").toUpperCase().replace(/\s/g,"").split(",");
@@ -1277,6 +1292,7 @@ function refresh(){
       const fb=g(r,"Feedback "+L);if(fb)o.appendChild(el("div","fb",fb));box.appendChild(o);});
     if(["SA","NUM"].includes(tp))box.appendChild(el("div","opt correct","Accepted: "+g(r,"Correct")+(tp==="NUM"&&g(r,"Tolerance")?" (± "+g(r,"Tolerance")+")":"")));
     [["Correct feedback","Correct feedback"],["Incorrect feedback","Incorrect feedback"],["General feedback","General feedback"]].forEach(([k,lab])=>{if(g(r,k)){const d=el("div","gfb");d.appendChild(el("strong",null,lab+": "));d.appendChild(document.createTextNode(g(r,k)));box.appendChild(d);}});
+    if(["MC","MA","TF"].includes(tp))qImgs(box,i,r);
     if(errs[i].length){const d=el("div","errs");errs[i].forEach(e=>d.appendChild(el("div",null,"⚠ "+e)));box.appendChild(d);}
     pv.appendChild(box);
   });
@@ -1285,12 +1301,13 @@ function refresh(){
   if(!$("title").value.trim()){st.className="status bad";st.textContent="All "+recs.length+" rows look fine. Add a quiz title to enable download.";return;}
   const b=build(recs,$("title").value.trim(),$("desc").value.trim());current=b;
   st.className="status ok";st.textContent="All "+recs.length+" rows look fine."+(t.dups?" "+t.dups+" repeated row"+(t.dups>1?"s were":" was")+" removed (the agent's reply was probably pasted twice).":"");
-  sum.textContent="Questions each student sees: "+b.seen+(b.cases?" · Case texts: "+b.cases:"")+" · Total points: "+b.total+(b.notes.length?" · Pools: "+b.notes.join("; "):"");
+  sum.textContent=(hasImg?imgSummary(recs):"")+"Questions each student sees: "+b.seen+(b.cases?" · Case texts: "+b.cases:"")+" · Total points: "+b.total+(b.notes.length?" · Pools: "+b.notes.join("; "):"");
   dl.disabled=false;
   const hb=buildH5P(recs,$("title").value.trim(),h5pOpts());
   const notes=[];if(hb.skipped.length)notes.push("Not included in H5P (no matching H5P question type): "+hb.skipped.join(", ")+".");
   if(hb.pools)notes.push("Pools are ignored in H5P; every question is included.");
   notes.push(hb.count+" question"+(hb.count===1?"":"s")+" will go into the H5P set.");
+  if(hb.images)notes.push(hb.images+" picture"+(hb.images===1?"":"s")+" will appear above "+(hb.images===1?"its question":"their questions")+". The Canvas quiz leaves pictures out.");
   $("h5pNote").textContent=notes.join(" ");$("h5pBtn").disabled=hb.count===0;
 }
 $("csv").addEventListener("input",refresh);$("title").addEventListener("input",refresh);$("desc").addEventListener("input",refresh);
@@ -1308,13 +1325,18 @@ function imgSummary(recs){
   return out;}
 function showImgList(){const k=Object.keys(IMAGES),p=Object.values(PDFS),d=Object.values(DOCS);const items=k.map(x=>IMAGES[x].name+" ("+IMAGES[x].w+"×"+IMAGES[x].h+")").concat(p.map(x=>x.name+" (lecture PDF)")).concat(d.map(x=>x.name+" (Word file: "+x.pics.length+" picture"+(x.pics.length===1?"":"s")+(x.skipped.small?", "+x.skipped.small+" small logo"+(x.skipped.small===1?"":"s")+" or icon"+(x.skipped.small===1?"":"s")+" left out":"")+(x.skipped.format?", "+x.skipped.format+" drawing"+(x.skipped.format===1?"":"s")+" in a format H5P cannot show left out":"")+")"));$("imgList").textContent=items.length?"Added: "+items.join(", "):"No images added.";}
 function readImage(f){return new Promise(res=>{const fr=new FileReader();fr.onload=()=>{const bytes=new Uint8Array(fr.result);const url=URL.createObjectURL(f);const im=new Image();
-  const done=(w,h)=>{URL.revokeObjectURL(url);let mime=f.type;if(!mime){const e=f.name.toLowerCase().split(".").pop();mime={png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",svg:"image/svg+xml"}[e]||"image/png";}res({key:imgKey(f.name),name:f.name,bytes,mime,w:w||800,h:h||600});};
+  const done=(w,h)=>{let mime=f.type;if(!mime){const e=f.name.toLowerCase().split(".").pop();mime={png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",svg:"image/svg+xml"}[e]||"image/png";}
+    /* v18: an SVG can carry scripts, so it is redrawn as a PNG and only the picture goes into the package */
+    if(mime==="image/svg+xml"||/\.svg$/i.test(f.name)){const W=w||800,H=h||600,sc=Math.min(1,2400/Math.max(W,H)),cv=document.createElement("canvas");cv.width=Math.round(W*sc*(W<800?2:1));cv.height=Math.round(H*sc*(W<800?2:1));
+      try{cv.getContext("2d").drawImage(im,0,0,cv.width,cv.height);cv.toBlob(async bl=>{URL.revokeObjectURL(url);if(!bl){res(null);return;}const nm=f.name.replace(/\.svg$/i,".png");res({key:imgKey(nm),name:f.name+" (as PNG)",bytes:new Uint8Array(await bl.arrayBuffer()),mime:"image/png",w:cv.width,h:cv.height});},"image/png");}
+      catch(err){URL.revokeObjectURL(url);res(null);}return;}
+    URL.revokeObjectURL(url);res({key:imgKey(f.name),name:f.name,bytes,mime,w:w||800,h:h||600});};
   im.onload=()=>done(im.naturalWidth,im.naturalHeight);im.onerror=()=>done(0,0);im.src=url;};fr.readAsArrayBuffer(f);});}
 $("imgBtn").onclick=()=>$("imgs").click();
 $("imgs").onchange=async e=>{const all=[...e.target.files];
   for(const f of all.filter(f=>/\.pdf$/i.test(f.name))){const base=f.name.replace(/^.*[\\/]/,"").replace(/\.pdf$/i,"").trim().toLowerCase();PDFS[base]={name:f.name,base,bytes:new Uint8Array(await f.arrayBuffer())};Object.keys(RENDERED).filter(k=>k.startsWith(base+"#")).forEach(k=>delete RENDERED[k]);loadPdfJs().catch(()=>{});}
-  for(const f of all.filter(f=>/\.(png|jpe?g|gif|svg)$/i.test(f.name))){const img=await readImage(f);IMAGES[img.key]=img;}
-  const bad=[];
+  const svgBad=[];for(const f of all.filter(f=>/\.(png|jpe?g|gif|svg)$/i.test(f.name))){const img=await readImage(f);if(img)IMAGES[img.key]=img;else svgBad.push(f.name+": this SVG could not be turned into a picture. Save it as a PNG and add it again");}
+  const bad=svgBad.slice();
   for(const f of all.filter(f=>/\.docx?$/i.test(f.name))){
     if(/\.doc$/i.test(f.name)){bad.push(f.name+": this is an older Word format. Open it in Word, choose Save As > Word Document (.docx), then add it again");continue;}
     $("imgList").textContent="Reading "+f.name+"\u2026";
